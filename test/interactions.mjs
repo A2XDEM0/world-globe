@@ -1,0 +1,26 @@
+// Usage: node test/interactions.mjs <project root> <old CGAZ id of USA-0001>, with `npm run serve` running. Screenshots go to work/.
+import puppeteer from 'puppeteer-core';
+const S=process.argv[2],OLD=process.argv[3];const sleep=ms=>new Promise(k=>setTimeout(k,ms));
+const b=await puppeteer.launch({executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',headless:true,args:['--no-sandbox']});
+const p=await b.newPage();await p.setViewport({width:1440,height:900});const errs=[];p.on('pageerror',e=>errs.push(String(e)));
+await p.evaluateOnNewDocument(old=>{try{if(!sessionStorage.getItem('seeded')){sessionStorage.setItem('seeded','1');localStorage.setItem('world-globe-v1',JSON.stringify({cats:[{id:'c1',name:'旧配置',color:'#2c559b',ids:['GRL'],regions:['USA/2:'+old]}]}))}}catch(e){}},OLD);
+await p.goto('http://127.0.0.1:8765/wrap.html',{waitUntil:'load'});await p.waitForFunction('DATA.hi',{timeout:12000});await sleep(200);
+const r={};
+r.migratedCountry=await p.evaluate(()=>cfg.cats[0].ids);
+await p.evaluate(()=>loadAdmin('USA',2));await sleep(200);r.migratedRegion=await p.evaluate(()=>cfg.cats[0].regions);
+await p.evaluate(()=>{cfg=normalize(clone(SAMPLE));active='c1';renderAll()});
+await p.click('#unit-2 + span');
+await p.evaluate(()=>{rot=[87.75,-41.85,0];zoom=6;moving=false;drawBase()});await sleep(300);
+const bx=await (await p.$('#hl')).boundingBox();const cx=bx.x+bx.width/2,cy=bx.y+bx.height/2;
+await p.mouse.move(cx-3,cy);await p.mouse.move(cx,cy);await sleep(1500);await p.mouse.move(cx+1,cy);await sleep(400);
+r.hover=await p.$eval('#readout',n=>n.textContent);
+await p.screenshot({path:S+'/work/unit2.png'});
+await p.mouse.click(cx,cy);await sleep(400);r.after2=await p.evaluate(()=>cfg.cats[0].regions.map(codeOf));
+await p.click('#unit-1 + span');await p.mouse.move(cx+40,cy+40);await p.mouse.click(cx+40,cy+40);await sleep(600);r.after1=await p.evaluate(()=>cfg.cats[0].regions.map(codeOf));
+await p.evaluate(()=>{const t=$('cat-regs');t.value='USA-0001, usa.us-tx, XYZ-9999, CHN.CN-TW';t.dispatchEvent(new Event('change'))});await sleep(1500);
+r.typed=await p.evaluate(()=>cfg.cats[0].regions.map(codeOf));r.err=await p.$eval('#regs-err',n=>n.hidden?'':n.textContent);
+await p.click('#unit-0 + span');await p.evaluate(()=>openCountry('DNK'));await sleep(1500);
+r.dnk=await p.evaluate(()=>flatHint);
+await p.screenshot({path:S+'/work/dnk.png'});
+await p.evaluate(()=>{try{localStorage.clear()}catch(e){}});
+console.log(JSON.stringify({r,errs}));await b.close();

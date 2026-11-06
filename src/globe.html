@@ -1,0 +1,1883 @@
+<title>世界色彩地球</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400&family=IBM+Plex+Sans:wght@400;500;600&family=Inter:wght@500;600&display=swap">
+<style>
+/* Layout: a drafting desk. The globe or country sheet sits on a cool workspace, tools above and brushes below, settings beside it. */
+:root {
+  --bg: #eef0f3; --surface: #f8f9fa; --fg: #1d2330; --muted: #5d6675; --line: #d3d8e0; --accent: #2c559b; --on-accent: #ffffff; --danger: #a23a2a;
+  --ui: "IBM Plex Sans", "PingFang SC", "Noto Sans SC", "Microsoft YaHei", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #14171d; --surface: #1c2028; --fg: #e8eaef; --muted: #9aa3b2; --line: #333a46; --accent: #93b2e8; --on-accent: #14171d; --danger: #e58f7f; color-scheme: dark } }
+:root[data-theme="dark"] { --bg: #14171d; --surface: #1c2028; --fg: #e8eaef; --muted: #9aa3b2; --line: #333a46; --accent: #93b2e8; --on-accent: #14171d; --danger: #e58f7f; color-scheme: dark }
+* { box-sizing: border-box }
+[hidden] { display: none !important }
+body { background: var(--bg); color: var(--fg); font: 400 14px/1.5 var(--ui) }
+.app { display: grid; gap: 16px 24px; grid-template-columns: minmax(0, 1fr) 320px; grid-template-areas: "top top" "stage panel"; max-width: 1560px; margin-inline: auto; padding-block: 20px 32px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)) }
+.top { grid-area: top; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px }
+h1 { margin: 0; font-size: 20px; font-weight: 600; text-wrap: balance }
+.stage { grid-area: stage; align-self: start; display: grid; gap: 12px; min-width: 0; position: sticky; top: 16px }
+.panel { grid-area: panel; display: grid; gap: 20px; align-content: start; min-width: 0 }
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-height: 36px }
+.toolbar .seg { width: 180px; flex: none }
+.seg.three { grid-template-columns: repeat(3, 1fr) }
+.toolbar .seg.three { width: 192px }
+.toolbar .grow { flex: 1 1 180px; min-width: 0 }
+.flat-name { flex: 1 1 120px; min-width: 0; margin: 0; font-size: 16px; font-weight: 600 }
+.sheet { position: relative; margin: 0; width: 100%; height: clamp(340px, calc(100vh - 260px), 62vw); border: 1px solid var(--line); overflow: hidden }
+.sheet canvas, #flat { position: absolute; inset: 0; width: 100%; height: 100%; display: block }
+#hl { cursor: grab; touch-action: none; outline: none }
+#hl.dragging { cursor: grabbing }
+#hl.over { cursor: pointer }
+.sheet:has(#hl:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px }
+#flat { cursor: grab; touch-action: none }
+#flat.dragging { cursor: grabbing }
+#flat [data-name] { cursor: inherit }
+.zoombar { position: absolute; top: 8px; right: 8px; z-index: 2; display: grid; gap: 4px }
+.zoombar button { width: 34px; height: 34px; padding: 0; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--fg); font: inherit; font-size: 12px; cursor: pointer }
+.zoombar button:disabled { opacity: .45; cursor: default }
+#flat .nohit { pointer-events: none }
+.fps { position: absolute; left: 8px; bottom: 8px; z-index: 2; margin: 0; padding: 2px 8px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--muted); font: 12px/1.5 var(--mono); font-variant-numeric: tabular-nums; pointer-events: none; opacity: .92 }
+.brushes { display: flex; flex-wrap: wrap; gap: 8px }
+.chip { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 4px 10px 4px 6px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--fg); font: inherit; cursor: pointer }
+.chip[aria-pressed="true"] { border-color: var(--fg); box-shadow: inset 0 0 0 1px var(--fg); font-weight: 500 }
+.chip .n { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 12px }
+.chip.add { padding-left: 10px; border-style: dashed; color: var(--muted) }
+.sw { width: 22px; height: 22px; flex: none; border: 1px solid rgba(0, 0, 0, .18) }
+.meta { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 16px; margin: 0; color: var(--muted); font-size: 12px }
+#readout { min-height: 18px; color: var(--fg) }
+section { display: grid; gap: 12px; min-width: 0 }
+.panel section + section { padding-top: 20px; border-top: 1px solid var(--line) }
+h2 { margin: 0; font-size: 13px; font-weight: 600 }
+.field { display: grid; gap: 4px; min-width: 0 }
+.field > label, .field > .lab { color: var(--muted); font-size: 12px }
+input[type="text"], input[type="search"], textarea { width: 100%; min-width: 0; padding: 6px 8px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--fg); font: inherit }
+.mono { font-family: var(--mono) !important; font-size: 13px !important }
+textarea { resize: vertical }
+.color { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 8px; align-items: center }
+input[type="color"] { width: 40px; height: 34px; padding: 2px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); cursor: pointer }
+.seg { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--line); border-radius: 4px; overflow: hidden }
+.seg label { display: block; padding: 6px 8px; text-align: center; cursor: pointer; background: var(--surface) }
+.seg input { position: absolute; opacity: 0; pointer-events: none }
+.seg input:checked + span { font-weight: 600 }
+.seg label:has(input:checked) { background: var(--accent); color: var(--on-accent) }
+.seg label:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: -2px }
+.check { display: flex; align-items: center; gap: 8px; cursor: pointer }
+.check input { accent-color: var(--accent) }
+.range { display: grid; grid-template-columns: minmax(0, 1fr) 44px; gap: 8px; align-items: center }
+.range input { width: 100%; accent-color: var(--accent) }
+.range output { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; text-align: right }
+.btn { min-height: 34px; padding: 5px 12px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--fg); font: inherit; cursor: pointer }
+.btn:disabled { opacity: .5; cursor: default }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 500 }
+.btn.quiet { color: var(--danger); justify-self: start }
+.row { display: flex; flex-wrap: wrap; gap: 8px }
+.err { margin: 0; color: var(--danger); font-size: 12px }
+.note { margin: 0; color: var(--muted); font-size: 12px }
+summary { cursor: pointer; font-size: 13px; font-weight: 600 }
+details > div { display: grid; gap: 8px; margin-top: 12px }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+@media (max-width: 900px) {
+  .app { grid-template-columns: minmax(0, 1fr); grid-template-areas: "top" "stage" "panel" }
+  .stage { position: static }
+  .sheet { height: min(92vw, 70vh) }
+}
+</style>
+
+<main class="app">
+  <header class="top">
+    <h1>世界色彩地球</h1>
+    <div class="row">
+      <button class="btn" id="undo" type="button" disabled>撤销</button>
+      <button class="btn" id="reset" type="button">恢复示例</button>
+    </div>
+  </header>
+
+  <div class="stage">
+    <div class="toolbar" id="globe-bar">
+      <div class="seg" role="radiogroup" aria-label="点击国家时">
+        <label><input type="radio" name="mode" id="mode-paint" value="paint" checked><span>涂色</span></label>
+        <label><input type="radio" name="mode" id="mode-view" value="view"><span>查看</span></label>
+      </div>
+      <div class="seg three" role="radiogroup" aria-label="涂色单位">
+        <label><input type="radio" name="unit" id="unit-0" value="0" checked><span>国家</span></label>
+        <label><input type="radio" name="unit" id="unit-1" value="1"><span>一级</span></label>
+        <label><input type="radio" name="unit" id="unit-2" value="2"><span>二级</span></label>
+      </div>
+      <div class="grow">
+        <input id="find" type="search" list="find-list" placeholder="搜索国家并转到它" aria-label="搜索国家并转到它" autocomplete="off">
+        <datalist id="find-list"></datalist>
+      </div>
+    </div>
+    <div class="toolbar" id="flat-bar" hidden>
+      <button class="btn primary" id="back" type="button">返回地球</button>
+      <p class="flat-name" id="flat-name"></p>
+      <div class="seg three" role="radiogroup" aria-label="涂色单位">
+        <label><input type="radio" name="lvl" id="lvl-0" value="0" checked><span>国家</span></label>
+        <label><input type="radio" name="lvl" id="lvl-1" value="1"><span>一级</span></label>
+        <label><input type="radio" name="lvl" id="lvl-2" value="2"><span>二级</span></label>
+      </div>
+      <button class="btn" id="flat-paint" type="button"></button>
+    </div>
+    <figure class="sheet" id="sheet">
+      <canvas id="base" aria-hidden="true"></canvas>
+      <canvas id="gl" aria-hidden="true" hidden></canvas>
+      <canvas id="hl" tabindex="0" role="application" aria-label="可以旋转的地球。方向键旋转，回车键对正中央的国家执行当前操作。"></canvas>
+      <svg id="flat" xmlns="http://www.w3.org/2000/svg" role="group" hidden></svg>
+      <div class="zoombar" role="group" aria-label="缩放">
+        <button id="zoom-in" type="button" aria-label="放大">＋</button>
+        <button id="zoom-out" type="button" aria-label="缩小">－</button>
+        <button id="zoom-home" type="button" aria-label="恢复原始大小">复位</button>
+      </div>
+      <p class="fps" id="fps" aria-live="off" hidden></p>
+    </figure>
+    <div class="brushes" id="brushes" role="group" aria-label="选择画笔颜色"></div>
+    <p class="meta"><span id="readout"></span><span id="load-note" role="status"></span></p>
+    <p class="note">本图按自定义边界绘制：台湾、香港、澳门、藏南并入中国，含南海十段线；科索沃并入塞尔维亚；格陵兰并入丹麦；卢甘斯克、顿涅茨克、克里米亚（含塞瓦斯托波尔）并入俄罗斯。东西德分界线和西柏林边界来自 OpenHistoricalMap（1951–1990，CC0），二级行政区来自 geoBoundaries CGAZ（CC BY 4.0）。这些划分存在争议，不代表国际公认边界。底图来自 Natural Earth 1:10m（公有领域），第十段线的位置参考公开地图资料，只是近似。</p>
+  </div>
+
+  <aside class="panel">
+    <section aria-labelledby="ed-title">
+      <h2 id="ed-title">当前颜色</h2>
+      <div class="field" id="f-name"><label for="cat-name">名称</label><input id="cat-name" type="text" maxlength="24"></div>
+      <div class="field" id="f-style"><span class="lab">样式</span>
+        <div class="seg" role="radiogroup" aria-label="样式">
+          <label><input type="radio" name="style" id="style-solid" value="solid"><span>纯色</span></label>
+          <label><input type="radio" name="style" id="style-stripes" value="stripes"><span>斜线</span></label>
+        </div>
+      </div>
+      <div class="field"><label for="cat-hex" id="color-label">颜色</label>
+        <div class="color"><input id="cat-color" type="color" aria-label="选取颜色"><input id="cat-hex" class="mono" type="text" spellcheck="false" maxlength="7"></div>
+      </div>
+      <div class="field" id="f-stripe"><label for="cat-stripe-hex">斜线颜色</label>
+        <div class="color"><input id="cat-stripe" type="color" aria-label="选取斜线颜色"><input id="cat-stripe-hex" class="mono" type="text" spellcheck="false" maxlength="7"></div>
+      </div>
+      <div class="field" id="f-ids"><label for="cat-ids">包含的国家（中文名、英文名或三位代码，用逗号或顿号分开）</label>
+        <textarea id="cat-ids" rows="3" spellcheck="false"></textarea>
+        <p class="err" id="ids-err" hidden></p>
+        <label for="cat-regs">单独涂色的行政区（代码，用逗号分开）</label>
+        <textarea id="cat-regs" class="mono" rows="2" spellcheck="false"></textarea>
+        <p class="err" id="regs-err" hidden></p>
+        <p class="note" id="cat-regions"></p>
+      </div>
+      <button class="btn quiet" id="cat-delete" type="button">删除这个颜色</button>
+    </section>
+
+    <section aria-labelledby="base-title">
+      <h2 id="base-title">底图</h2>
+      <label class="check"><input id="t-admin" type="checkbox">显示行政区线</label>
+      <label class="check"><input id="t-adm2" type="checkbox">平面图显示二级行政区线（市、县）</label>
+      <label class="check"><input id="t-labels" type="checkbox">平面图显示行政区名称</label>
+      <div class="field"><label for="label-size">行政区名称字号</label>
+        <div class="range"><input id="label-size" type="range" min="7" max="20" step="0.5"><output id="label-size-out" for="label-size"></output></div>
+      </div>
+      <label class="check"><input id="t-grat" type="checkbox">地球显示经纬网</label>
+      <label class="check"><input id="t-gdr" type="checkbox">显示东西德分界线和西柏林边界（1951–1990）</label>
+      <div class="field"><label for="ocean-hex">海洋颜色</label>
+        <div class="color"><input id="ocean" type="color" aria-label="选取海洋颜色"><input id="ocean-hex" class="mono" type="text" spellcheck="false" maxlength="7"></div>
+      </div>
+      <div class="field"><label for="paper-hex">背景颜色</label>
+        <div class="color"><input id="paper" type="color" aria-label="选取背景颜色"><input id="paper-hex" class="mono" type="text" spellcheck="false" maxlength="7"></div>
+      </div>
+      <label class="check"><input id="t-fps" type="checkbox">显示地球的帧率和每帧耗时</label>
+    </section>
+
+    <section aria-labelledby="out-title">
+      <h2 id="out-title">导出当前视图</h2>
+      <div class="row">
+        <button class="btn primary" id="save-png" type="button" hidden>保存 PNG</button>
+        <button class="btn" id="save-svg" type="button" hidden>保存 SVG</button>
+        <button class="btn" id="copy-svg" type="button">复制 SVG 代码</button>
+      </div>
+      <p class="note" id="msg" role="status"></p>
+      <details id="cfg-box">
+        <summary>配置 JSON（备份或导入）</summary>
+        <div>
+          <label class="note" for="cfg-text">颜色和分组保存在这个浏览器里。换设备时，复制这段配置，粘贴到新页面后点“应用”。</label>
+          <textarea id="cfg-text" class="mono" rows="8" spellcheck="false"></textarea>
+          <p class="err" id="cfg-err" hidden></p>
+          <div class="row"><button class="btn" id="cfg-copy" type="button">复制</button><button class="btn" id="cfg-apply" type="button">应用</button></div>
+        </div>
+      </details>
+    </section>
+  </aside>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+<script src="vendor/earcut.min.js"></script>
+<script src="globe-gl.js"></script>
+<script src="platform.js"></script>
+<script type="application/json" id="geo">__GEO__</script>
+<script>
+const META = JSON.parse(document.getElementById('geo').textContent);
+const NS = 'http://www.w3.org/2000/svg';
+const FONT = 'Inter, "Helvetica Neue", Arial, "PingFang SC", "Noto Sans SC", sans-serif';
+const INK = '#2a2b30';
+const HEX = /^#[0-9a-f]{6}$/i;
+const BASE = 'base';
+const DEG = 180 / Math.PI;
+const NEW_COLORS = ['#3f7d5a', '#c28a1e', '#6b4c9a', '#1f7f8c', '#b0507a', '#59616e'];
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const FLAT = { w: 1000, h: 640 };
+const GLOBE_MAX = 10;
+const CORE_POINT = { DNK: [9.5, 56] };
+const INSET_LABELS = { DNK: [[[-42, 72], '格陵兰']] };
+const FLAT_MAX = 12;
+const HOME = { k: 1, x: 0, y: 0 };
+const DASHES = { type: 'MultiLineString', coordinates: META.dashes };
+// the 1951–1990 inner German border and the West Berlin ring, from OpenHistoricalMap
+const GDR = { type: 'MultiLineString', coordinates: META.gdr };
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+// configs saved before the borders changed still point at the old units
+const MIGRATE = { TWN: 'CHN', HKG: 'CHN', MAC: 'CHN', SCR: 'CHN', PGA: 'CHN', KOS: 'SRB', SOL: 'SOM', CYN: 'CYP', KAS: 'IND', KAB: 'KAZ', USG: 'CUB', GRL: 'DNK' };
+const ALIASES = { CHN: ['台湾', 'taiwan', '中华民国', '香港', 'hong kong', '澳门', 'macau', 'macao', '黄岩岛', '南沙群岛', '西沙群岛', '藏南', '阿鲁纳恰尔', '中华人民共和国'], SRB: ['科索沃', 'kosovo'], DNK: ['格陵兰', 'greenland'], SOM: ['索马里兰', 'somaliland'], CYP: ['北塞浦路斯'] };
+
+const NAMES = {};
+const LOOKUP = new Map();
+for (const [id, z, n] of META.names) {
+  NAMES[id] = { z, n };
+  for (const key of [id, z, n]) LOOKUP.set(key.toLowerCase(), id);
+}
+for (const id in ALIASES) for (const key of ALIASES[id]) LOOKUP.set(key, id);
+for (const old in MIGRATE) LOOKUP.set(old.toLowerCase(), MIGRATE[old]);
+const CODES = new Set(Object.keys(NAMES));
+const ADMIN_FILES = new Set(META.admin);
+const ADMIN2_FILES = new Set(META.admin2);
+
+const SAMPLE = {
+  paper: '#fbfaf7', ocean: '#dfe6ea', base: '#eeece7', admin: false, adm2: false, labels: true, labelSize: 10.5, graticule: true, gdr: true,
+  cats: [
+    { id: 'c1', name: '示例：蓝色', style: 'solid', color: '#2c559b', stripe: '#9db2d1', ids: ['CAN', 'BRA', 'AUS', 'JPN', 'NOR'] },
+    { id: 'c2', name: '示例：红色', style: 'solid', color: '#a23a2a', stripe: '#d9a79c', ids: ['ZAF', 'EGY', 'TUR', 'MEX', 'IDN'] },
+    { id: 'c3', name: '示例：蓝色斜线', style: 'stripes', color: '#2c559b', stripe: '#9db2d1', ids: ['IND', 'FRA', 'ARG'] },
+    { id: 'c4', name: '示例：浅红色', style: 'solid', color: '#e5d4cb', stripe: '#f3ece8', ids: ['MNG'] }
+  ]
+};
+
+const $ = id => document.getElementById(id);
+const el = (name, attrs = {}, parent) => {
+  const node = document.createElementNS(NS, name);
+  for (const k in attrs) node.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(node);
+  return node;
+};
+const clone = o => JSON.parse(JSON.stringify(o));
+const nameOf = id => NAMES[id] ? NAMES[id].z : id;
+
+function normalize(o) {
+  if (!o || !Array.isArray(o.cats)) throw new Error('配置里缺少 cats 列表。');
+  const hex = (v, d) => HEX.test(v) ? v.toLowerCase() : d;
+  const seen = new Set(), seenR = new Set();
+  const cats = o.cats.map((c, i) => ({
+    id: String(c.id || 'c' + (i + 1)),
+    name: String(c.name || '颜色 ' + (i + 1)).slice(0, 24),
+    style: c.style === 'stripes' ? 'stripes' : 'solid',
+    color: hex(c.color, '#59616e'),
+    stripe: hex(c.stripe, '#d3d8e0'),
+    ids: (Array.isArray(c.ids) ? c.ids : []).map(s => { const u = String(s).toUpperCase(); return MIGRATE[u] || u; }).filter(s => CODES.has(s) && !seen.has(s) && seen.add(s)),
+    regions: (Array.isArray(c.regions) ? c.regions : []).map(String).filter(r => /^[A-Z]{3}\//.test(r) && CODES.has(r.slice(0, 3)) && !seenR.has(r) && seenR.add(r))
+  }));
+  return {
+    paper: hex(o.paper, SAMPLE.paper), ocean: hex(o.ocean, SAMPLE.ocean), base: hex(o.base, SAMPLE.base),
+    admin: o.admin === true, labels: o.labels !== false, labelSize: clamp(Number(o.labelSize) || 10.5, 7, 20), graticule: o.graticule !== false, gdr: o.gdr !== false, adm2: o.adm2 === true, cats
+  };
+}
+function load() {
+  try { const raw = platform.config.load(); if (raw) return normalize(raw); } catch (e) {}
+  return normalize(clone(SAMPLE));
+}
+function persist() { platform.config.store(cfg); }
+
+let cfg = load();
+platform.config.baseline(cfg);
+let active = cfg.cats[0] ? cfg.cats[0].id : BASE;
+let mode = 'paint';
+let view = 'globe';
+let lastSaved = JSON.stringify(cfg);
+const undoStack = [];
+let assign = new Map();
+let regionAssign = new Map();
+// the WebGL colour texture is rewritten before the next frame whenever this is set
+let glDirty = true;
+function rebuildAssign() {
+  glDirty = true;
+  assign = new Map();
+  regionAssign = new Map();
+  for (const c of cfg.cats) {
+    for (const id of c.ids) assign.set(id, c);
+    for (const key of c.regions) regionAssign.set(key, c);
+  }
+}
+rebuildAssign();
+
+function commit() {
+  const now = JSON.stringify(cfg);
+  if (now === lastSaved) return;
+  undoStack.push(lastSaved);
+  if (undoStack.length > 60) undoStack.shift();
+  lastSaved = now;
+  $('undo').disabled = false;
+  persist();
+  syncCfgText();
+}
+const activeCat = () => cfg.cats.find(c => c.id === active);
+// region keys are "USA/US-CA" (first level) or "USA/2:USA-0412" (second level); people see and type the codes
+function codeOf(key) {
+  const a3 = key.slice(0, 3), rest = key.slice(4);
+  return rest.startsWith('2:') ? rest.slice(2) : `${a3}.${rest}`;
+}
+function keyOfCode(t) {
+  let m = /^([A-Za-z]{3})-(\d{3,6})$/.exec(t);
+  if (m) { const a3 = m[1].toUpperCase(); return `${a3}/2:${a3}-${m[2]}`; }
+  m = /^([A-Za-z]{3})\.(.+)$/.exec(t);
+  if (m) return `${m[1].toUpperCase()}/${/^[A-Za-z]{2}-[A-Za-z0-9-]+$/.test(m[2]) ? m[2].toUpperCase() : m[2]}`;
+  return null;
+}
+
+/* ---- colour helpers ---- */
+const rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+function lum(h) {
+  const [r, g, b] = rgb(h).map(v => { v /= 255; return v <= .03928 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4; });
+  return .2126 * r + .7152 * g + .0722 * b;
+}
+const contrast = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + .05) / (Math.min(x, y) + .05); };
+const textOn = h => contrast(h, '#ffffff') >= contrast(h, INK) ? '#ffffff' : INK;
+function averaged(c) {
+  if (c.style !== 'stripes') return c.color;
+  const a = rgb(c.color), b = rgb(c.stripe);
+  return '#' + a.map((v, i) => Math.round(v * .6 + b[i] * .4).toString(16).padStart(2, '0')).join('');
+}
+const swatchCss = c => c.style === 'stripes'
+  ? `repeating-linear-gradient(-45deg, ${c.stripe} 0 3px, ${c.color} 3px 8px)`
+  : c.color;
+
+/* ---- geometry data ---- */
+// Natural Earth cuts polygons at the antimeridian and runs Antarctica along the pole; those edges are not real coastlines.
+function dropSeams(lines) {
+  const out = [];
+  for (const line of lines) {
+    let cur = [line[0]];
+    for (let i = 1; i < line.length; i++) {
+      const a = line[i - 1], b = line[i];
+      const seam = (Math.abs(a[0]) >= 179.99 && Math.abs(b[0]) >= 179.99) || (a[1] <= -89.99 && b[1] <= -89.99);
+      if (seam) { if (cur.length > 1) out.push(cur); cur = [b]; } else cur.push(b);
+    }
+    if (cur.length > 1) out.push(cur);
+  }
+  return { type: 'MultiLineString', coordinates: out };
+}
+function eachCoord(geom, fn) {
+  const walk = a => { if (typeof a[0] === 'number') fn(a); else a.forEach(walk); };
+  walk(geom.coordinates);
+}
+function buildSet(topo) {
+  const feats = topojson.feature(topo, topo.objects.countries).features.filter(f => f.geometry);
+  const byId = {};
+  for (const f of feats) {
+    let x0 = 180, x1 = -180, y0 = 90, y1 = -90;
+    eachCoord(f.geometry, p => { if (p[0] < x0) x0 = p[0]; if (p[0] > x1) x1 = p[0]; if (p[1] < y0) y0 = p[1]; if (p[1] > y1) y1 = p[1]; });
+    f.bbox = [x0, y0, x1, y1];
+    byId[f.id] = f;
+  }
+  return { feats, byId, lines: dropSeams(topojson.mesh(topo, topo.objects.countries).coordinates) };
+}
+function cullInfo(f, donor) {
+  if (donor) { f.cc = donor.cc; f.cr = donor.cr; return; }
+  f.cc = d3.geoCentroid(f);
+  let r = 0;
+  eachCoord(f.geometry, p => { const d = d3.geoDistance(f.cc, p); if (d > r) r = d; });
+  f.cr = r;
+}
+const DATA = { lo: buildSet(META.topo), hi: null, adminLo: null, adminHi: null };
+DATA.lo.feats.forEach(f => cullInfo(f));
+
+const hiReady = platform.data('data/countries-10m.json')
+  .then(topo => {
+    const set = buildSet(topo);
+    set.feats.forEach(f => cullInfo(f, DATA.lo.byId[f.id]));
+    DATA.hi = set;
+    $('load-note').textContent = '';
+    requestDraw();
+    setTimeout(ensureAdmin, 400);
+    return set;
+  })
+  .catch(() => {
+    $('load-note').textContent = '1:10m 细节没有加载出来，现在显示的是 1:50m。检查网络后刷新可以重试。';
+    return DATA.lo;
+  });
+$('load-note').textContent = '正在加载 1:10m 细节…';
+
+function linesFrom(topo) {
+  const fc = topojson.feature(topo, topo.objects.lines);
+  const coords = [];
+  for (const f of fc.features || [fc]) {
+    if (!f.geometry) continue;
+    if (f.geometry.type === 'LineString') coords.push(f.geometry.coordinates);
+    else coords.push(...f.geometry.coordinates);
+  }
+  return dropSeams(coords);
+}
+let adminLoading = false;
+async function ensureAdmin() {
+  if (DATA.adminHi || adminLoading) return;
+  adminLoading = true;
+  try {
+    if (!DATA.adminLo) {
+      DATA.adminLo = linesFrom(await platform.data('data/admin1-lo.json'));
+      requestDraw();
+    }
+    DATA.adminHi = linesFrom(await platform.data('data/admin1-hi.json'));
+    requestDraw();
+  } catch (e) {
+    if (cfg.admin) say('行政区线没有加载出来，检查网络后关掉开关再打开一次。');
+  }
+  adminLoading = false;
+}
+const adminCache = {};
+const regionGeo = {};
+// district keys saved before codes existed used the source's long ids; swap them once the file arrives
+function migrateKeys(a3, t) {
+  const old = new Map(t.objects.r.geometries.map(g => [g.properties.s, g.id]));
+  let changed = false;
+  for (const c of cfg.cats) c.regions = c.regions.map(k => {
+    if (!k.startsWith(a3 + '/2:') || !old.has(k.slice(6))) return k;
+    changed = true;
+    return `${a3}/2:${old.get(k.slice(6))}`;
+  });
+  if (!changed) return;
+  rebuildAssign();
+  persist();
+  lastSaved = JSON.stringify(cfg);
+  renderBrushes();
+  syncEditor();
+  requestDraw();
+}
+const regionList = {};
+function regionFeatures(a3, level) {
+  const slot = `${a3}:${level}`;
+  if (!regionList[slot]) regionList[slot] = loadAdmin(a3, level).then(t => !t ? [] : topojson.feature(t, t.objects.r).features.map(f => {
+    let x0 = 180, x1 = -180, y0 = 90, y1 = -90;
+    eachCoord(f.geometry, p => { if (p[0] < x0) x0 = p[0]; if (p[0] > x1) x1 = p[0]; if (p[1] < y0) y0 = p[1]; if (p[1] > y1) y1 = p[1]; });
+    f.bbox = [x0, y0, x1, y1];
+    return f;
+  }));
+  return regionList[slot];
+}
+async function regionAt(a3, level, ll) {
+  const list = await regionFeatures(a3, level);
+  const f = list.find(r => { const b = r.bbox; return ll[0] >= b[0] && ll[0] <= b[2] && ll[1] >= b[1] && ll[1] <= b[3] && d3.geoContains(r, ll); });
+  return { f: f || null, empty: !list.length };
+}
+const regionKey = (a3, level, f) => `${a3}/${level === 2 ? '2:' : ''}${f.id}`;
+async function paintRegionAt(id, ll, clear) {
+  let level = paintLevel, hit = await regionAt(id, level, ll);
+  if (hit.empty && level === 2) { level = 1; hit = await regionAt(id, 1, ll); }
+  if (hit.empty) { togglePaint(id, clear); say(`${nameOf(id)}没有行政区数据，已改为${clear ? '还原整个国家' : '给整个国家涂色'}。`); return; }
+  if (!hit.f) { say('这个位置没有找到行政区，换个地方再点一次。'); return; }
+  toggleRegion(regionKey(id, level, hit.f), hit.f.properties.z || hit.f.properties.n, clear);
+}
+// region keys look like "USA/US-CA" (first level) or "USA/2:<id>" (second level); shapes load on first use
+function regionShapes(a3, level) {
+  const slot = `${a3}:${level}`;
+  if (slot in regionGeo) return regionGeo[slot];
+  regionGeo[slot] = null;
+  loadAdmin(a3, level).then(t => {
+    regionGeo[slot] = new Map(t ? topojson.feature(t, t.objects.r).features.map(f => { cullInfo(f); return [f.id, f]; }) : []);
+    glDirty = true;
+    requestDraw();
+  });
+  return null;
+}
+function paintedRegions(center, vis) {
+  const groups = new Map();
+  for (const [key, c] of regionAssign) {
+    const rest = key.slice(4), level = rest.startsWith('2:') ? 2 : 1;
+    const shapes = regionShapes(key.slice(0, 3), level);
+    const f = shapes && shapes.get(level === 2 ? rest.slice(2) : rest);
+    if (!f || d3.geoDistance(center, f.cc) > vis + f.cr) continue;
+    if (!groups.has(c)) groups.set(c, []);
+    groups.get(c).push(f);
+  }
+  return groups;
+}
+function loadAdmin(id, level = 1) {
+  if (!(level === 2 ? ADMIN2_FILES : ADMIN_FILES).has(id)) return Promise.resolve(null);
+  const key = `${id}:${level}`;
+  if (!adminCache[key]) {
+    adminCache[key] = platform.data(`data/admin${level}/${id}.json`)
+      .then(t => { if (level === 2) migrateKeys(id, t); return t; })
+      .catch(() => { delete adminCache[key]; return null; });
+  }
+  return adminCache[key];
+}
+
+/* ---- globe drawing ---- */
+const SPHERE = { type: 'Sphere' };
+const GRATICULE = d3.geoGraticule().step([15, 15])();
+const sheet = $('sheet'), baseCanvas = $('base'), hlCanvas = $('hl'), glCanvas = $('gl');
+const baseCtx = baseCanvas.getContext('2d'), hlCtx = hlCanvas.getContext('2d');
+let rot = [60, -20, 0];
+let zoom = 1;
+let size = { w: 1, h: 1, ratio: 1 };
+let moving = false;
+let highlight = null;
+let raf = 0;
+const timing = { lo: 0, hi: 0 };
+
+const globeScale = (w, h, z) => (Math.min(w, h) / 2 - 8) * z;
+function globeProjection(w, h, rotate, z = zoom) {
+  const p = d3.geoOrthographic().precision(0).clipAngle(90).translate([w / 2, h / 2]).scale(globeScale(w, h, z)).rotate(rotate);
+  if (z > 1) p.clipExtent([[-2, -2], [w + 2, h + 2]]);
+  return p;
+}
+function circleOf(line) {
+  let x0 = 180, x1 = -180, y0 = 90, y1 = -90;
+  for (const q of line) { if (q[0] < x0) x0 = q[0]; if (q[0] > x1) x1 = q[0]; if (q[1] < y0) y0 = q[1]; if (q[1] > y1) y1 = q[1]; }
+  const m = [(x0 + x1) / 2, (y0 + y1) / 2];
+  return { m, r: Math.max(d3.geoDistance(m, [x0, y0]), d3.geoDistance(m, [x1, y1]), d3.geoDistance(m, [x0, y1]), d3.geoDistance(m, [x1, y0])) };
+}
+// when zoomed in, only hand the projection the rings and lines that can reach the screen
+function visibleLines(ml, center, vis) {
+  if (!ml.parts) ml.parts = ml.coordinates.map(c => ({ c, ...circleOf(c) }));
+  return { type: 'MultiLineString', coordinates: ml.parts.filter(q => d3.geoDistance(center, q.m) <= vis + q.r).map(q => q.c) };
+}
+function visiblePolys(f, center, vis) {
+  if (!f.parts) f.parts = polygonsOf(f.geometry).map(c => ({ c, ...circleOf(c[0]) }));
+  return { type: 'MultiPolygon', coordinates: f.parts.filter(q => d3.geoDistance(center, q.m) <= vis + q.r).map(q => q.c) };
+}
+const visAngle = (w, h, z) => { const s = globeScale(w, h, z), d = Math.hypot(w, h) / 2; return s > d ? Math.asin(d / s) : Math.PI / 2; };
+function hatchPattern(ctx, c, ratio) {
+  const s = Math.max(2, Math.round(9 * ratio));
+  const tile = document.createElement('canvas');
+  tile.width = tile.height = s;
+  const t = tile.getContext('2d');
+  t.fillStyle = c.color;
+  t.fillRect(0, 0, s, s);
+  t.strokeStyle = c.stripe;
+  t.lineWidth = 2.6 * ratio;
+  for (const o of [-s, 0, s]) { t.beginPath(); t.moveTo(o, s); t.lineTo(o + s, 0); t.stroke(); }
+  const p = ctx.createPattern(tile, 'repeat');
+  p.setTransform(new DOMMatrix().scale(1 / ratio));
+  return p;
+}
+function drawGlobe(ctx, { w, h, ratio, set, admin, rotate, seal, z }) {
+  const p = globeProjection(w, h, rotate, z);
+  const vis = visAngle(w, h, z), fine = z > 1.5;
+  const path = d3.geoPath(p, ctx);
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+  ctx.lineJoin = ctx.lineCap = 'round';
+  ctx.fillStyle = cfg.paper;
+  ctx.fillRect(0, 0, w, h);
+  ctx.beginPath(); path(SPHERE); ctx.fillStyle = cfg.ocean; ctx.fill();
+  if (cfg.graticule) {
+    ctx.beginPath(); path(GRATICULE);
+    ctx.strokeStyle = 'rgba(0,0,0,.06)'; ctx.lineWidth = .5; ctx.stroke();
+  }
+  const center = [-rotate[0], -rotate[1]];
+  const groups = new Map();
+  for (const f of set.feats) {
+    if (d3.geoDistance(center, f.cc) > vis + f.cr) continue;
+    const c = assign.get(f.id) || null;
+    if (!groups.has(c)) groups.set(c, []);
+    groups.get(c).push(f);
+  }
+  for (const [c, items] of groups) {
+    const style = !c ? cfg.base : c.style === 'stripes' ? hatchPattern(ctx, c, ratio) : c.color;
+    ctx.beginPath();
+    for (const f of items) path(fine ? visiblePolys(f, center, vis) : f);
+    ctx.fillStyle = style;
+    ctx.fill();
+    if (seal) { ctx.strokeStyle = style; ctx.lineWidth = .5; ctx.stroke(); }
+  }
+  for (const [c, items] of paintedRegions(center, vis)) {
+    const style = c.style === 'stripes' ? hatchPattern(ctx, c, ratio) : c.color;
+    ctx.beginPath();
+    for (const f of items) path(f);
+    ctx.fillStyle = style;
+    ctx.fill();
+    ctx.strokeStyle = style; ctx.lineWidth = .4; ctx.stroke();
+  }
+  ctx.beginPath(); path(fine ? visibleLines(set.lines, center, vis) : set.lines);
+  ctx.strokeStyle = 'rgba(0,0,0,.3)'; ctx.lineWidth = .55; ctx.stroke();
+  if (admin) {
+    ctx.beginPath(); path(fine ? visibleLines(admin, center, vis) : admin);
+    ctx.strokeStyle = 'rgba(0,0,0,.2)'; ctx.lineWidth = .4; ctx.stroke();
+  }
+  if (cfg.gdr) {
+    ctx.beginPath(); path(GDR);
+    ctx.setLineDash([4, 3]); ctx.strokeStyle = 'rgba(0,0,0,.7)'; ctx.lineWidth = 1.1; ctx.stroke(); ctx.setLineDash([]);
+  }
+  ctx.beginPath(); path(DASHES);
+  ctx.lineCap = 'butt'; ctx.strokeStyle = 'rgba(0,0,0,.72)'; ctx.lineWidth = 1.3; ctx.stroke();
+  ctx.beginPath(); path(SPHERE);
+  ctx.strokeStyle = 'rgba(0,0,0,.28)'; ctx.lineWidth = .8; ctx.stroke();
+}
+function drawOverlay() {
+  const { w, h, ratio } = size;
+  hlCtx.setTransform(ratio, 0, 0, ratio, 0, 0);
+  hlCtx.clearRect(0, 0, w, h);
+  if (!highlight) return;
+  const f = (zoom > 1.5 && DATA.hi && DATA.hi.byId[highlight]) || DATA.lo.byId[highlight] || (DATA.hi && DATA.hi.byId[highlight]);
+  if (!f) return;
+  const path = d3.geoPath(globeProjection(w, h, rot), hlCtx);
+  hlCtx.lineJoin = 'round';
+  if (paintLevel > 0 && !moving && focusMesh && focusSlot === `${highlight}:${paintLevel}`) {
+    hlCtx.beginPath(); path(focusMesh);
+    hlCtx.strokeStyle = 'rgba(0,0,0,.35)'; hlCtx.lineWidth = .5; hlCtx.stroke();
+  }
+  hlCtx.beginPath(); path(paintLevel > 0 && hoverRegion ? hoverRegion : f);
+  hlCtx.strokeStyle = '#fff'; hlCtx.lineWidth = 2.4; hlCtx.stroke();
+  hlCtx.strokeStyle = '#14171d'; hlCtx.lineWidth = 1; hlCtx.stroke();
+}
+function drawBase() {
+  const useHi = !moving && DATA.hi;
+  const t0 = performance.now();
+  if (glReady) {
+    drawGL();
+    drawOverlay();
+    noteFrame(t0, performance.now() - t0);
+    return;
+  }
+  drawGlobe(baseCtx, {
+    w: size.w, h: size.h, ratio: size.ratio, rotate: rot, z: zoom,
+    set: useHi ? DATA.hi : DATA.lo,
+    admin: cfg.admin ? (useHi ? DATA.adminHi || DATA.adminLo : DATA.adminLo || DATA.adminHi) : null,
+    seal: false
+  });
+  timing[useHi ? 'hi' : 'lo'] = performance.now() - t0;
+  drawOverlay();
+  noteFrame(t0, performance.now() - t0);
+}
+/* ---- WebGL globe ---- */
+// WebGL draws the globe once its first mesh is cut; until then, and whenever WebGL is missing or lost, Canvas 2D draws it.
+// The hover outline stays on the Canvas 2D overlay, and picking stays on the CPU (inverse projection + geoContains).
+let glView = null;
+let glReady = false;
+let glHi = null;
+const glColorOf = key => key.includes('/') ? regionAssign.get(key) || null : assign.get(key) || { color: cfg.base, style: 'solid' };
+function showGlobeCanvases(on) {
+  baseCanvas.hidden = !on || glReady;
+  glCanvas.hidden = !on || !glReady;
+  hlCanvas.hidden = !on;
+}
+function drawGL() {
+  if (glDirty) {
+    for (const key of regionAssign.keys()) {
+      const rest = key.slice(4), level = rest.startsWith('2:') ? 2 : 1, shapes = regionShapes(key.slice(0, 3), level);
+      const f = shapes && shapes.get(level === 2 ? rest.slice(2) : rest);
+      if (f) glView.addRegion(key, f);
+    }
+    glView.setColors(glColorOf);
+    glDirty = false;
+  }
+  if (cfg.admin) glView.setLines('admin', DATA.adminHi || DATA.adminLo || null);
+  glView.draw({ w: size.w, h: size.h, ratio: size.ratio, rotate: rot, scale: globeScale(size.w, size.h, zoom), paper: cfg.paper, ocean: cfg.ocean, graticule: cfg.graticule, admin: cfg.admin, gdr: cfg.gdr });
+}
+function startGL() {
+  if (window.WG_FORCE_CANVAS) return;
+  try { glView = GlobeGL.create(glCanvas); } catch (e) { glView = null; }
+  if (!glView) return;
+  const view0 = glView;
+  for (const [name, ml] of [['graticule', GRATICULE], ['gdr', GDR], ['dashes', DASHES]]) glView.setLines(name, ml);
+  const use = (set, label) => {
+    if (glView !== view0) return;
+    glView.setLines('borders', set.lines);
+    glReady = true;
+    glDirty = true;
+    renderer = `WebGL ${label}`;
+    if (view === 'globe') showGlobeCanvases(true);
+    requestDraw();
+  };
+  // the 1:50m shapes take a few dozen milliseconds; the 1:10m ones are cut in slices once they arrive, then replace them
+  glHi = view0.setCountries(DATA.lo, 'lo').then(ok => {
+    if (ok && !DATA.hi) use(DATA.lo, '1:50m');
+    return hiReady;
+  }).then(set => set === DATA.lo ? false : view0.setCountries(set, 'hi').then(ok => { if (ok) use(set, '1:10m'); return ok; }));
+}
+glCanvas.addEventListener('webglcontextlost', e => {
+  e.preventDefault();
+  glView = null;
+  glReady = false;
+  renderer = 'Canvas 2D';
+  if (view === 'globe') showGlobeCanvases(true);
+  requestDraw();
+});
+glCanvas.addEventListener('webglcontextrestored', () => { startGL(); });
+
+/* ---- frame meter ---- */
+// [start, draw ms] for recent globe frames; the gaps between starts are what the eye sees
+const frameLog = [];
+let renderer = 'Canvas 2D';
+let meterTimer = 0;
+function noteFrame(at, ms) {
+  frameLog.push([at, ms]);
+  if (frameLog.length > 600) frameLog.splice(0, 100);
+}
+function frameStats(frames) {
+  const gaps = frames.slice(1).map((q, i) => q[0] - frames[i][0]).sort((a, b) => a - b);
+  if (!gaps.length) return null;
+  const span = frames[frames.length - 1][0] - frames[0][0];
+  return {
+    fps: gaps.length * 1000 / span, gap: span / gaps.length, p95: gaps[Math.min(gaps.length - 1, Math.floor(gaps.length * .95))],
+    draw: frames.reduce((s, q) => s + q[1], 0) / frames.length, frames: frames.length
+  };
+}
+function showMeter() {
+  const now = performance.now(), recent = frameLog.filter(q => now - q[0] < 1000), last = frameLog[frameLog.length - 1];
+  const s = recent.length > 2 && now - recent[recent.length - 1][0] < 300 ? frameStats(recent) : null;
+  $('fps').textContent = s
+    ? `${renderer} · ${s.fps.toFixed(0)} fps · 每帧 ${s.gap.toFixed(1)} ms（最慢 ${s.p95.toFixed(1)}）· 绘制 ${s.draw.toFixed(1)} ms`
+    : `${renderer} · 静止 · 上一帧绘制 ${last ? last[1].toFixed(1) : '–'} ms`;
+}
+function setMeter(on) {
+  $('t-fps').checked = on;
+  $('fps').hidden = !on;
+  clearInterval(meterTimer);
+  if (on) { showMeter(); meterTimer = setInterval(showMeter, 250); }
+  platform.pref('fps', on ? '1' : '');
+}
+$('t-fps').addEventListener('change', e => setMeter(e.target.checked));
+function requestDraw() {
+  if (raf || view !== 'globe') return;
+  raf = requestAnimationFrame(() => { raf = 0; drawBase(); });
+}
+function resize() {
+  const r = sheet.getBoundingClientRect();
+  const ratio = Math.min(window.devicePixelRatio || 1, 2);
+  const w = Math.max(1, Math.round(r.width - 2)), h = Math.max(1, Math.round(r.height - 2));
+  if (w === size.w && h === size.h && ratio === size.ratio) return;
+  size = { w, h, ratio };
+  for (const c of [baseCanvas, hlCanvas, glCanvas]) { c.width = w * ratio; c.height = h * ratio; }
+  if (view === 'globe') drawBase();
+}
+new ResizeObserver(resize).observe(sheet);
+
+/* ---- picking ---- */
+let lastLL = null;
+function pickLL(ll) {
+  // points exactly on the antimeridian or the pole lie on Natural Earth's cut lines, where geoContains says no; step off them
+  if (Math.abs(ll[0]) > 179.9999 || Math.abs(ll[1]) > 89.9999) ll = [clamp(ll[0], -179.9999, 179.9999), clamp(ll[1], -89.9999, 89.9999)];
+  lastLL = ll;
+  const set = DATA.hi || DATA.lo;
+  for (const f of set.feats) {
+    const b = f.bbox;
+    if (ll[0] < b[0] || ll[0] > b[2] || ll[1] < b[1] || ll[1] > b[3]) continue;
+    if (d3.geoContains(f, ll)) return f.id;
+  }
+  return null;
+}
+function pickAt(x, y) {
+  if (Math.hypot(x - size.w / 2, y - size.h / 2) > globeScale(size.w, size.h, zoom)) return null;
+  const ll = globeProjection(size.w, size.h, rot).invert([x, y]);
+  return ll ? pickLL(ll) : null;
+}
+
+/* ---- gestures, rotation, zoom ---- */
+const clampLat = v => Math.max(-90, Math.min(90, v));
+let gesturing = false;
+let inertia = 0;
+let settleTimer = 0;
+const stopMotion = () => { cancelAnimationFrame(inertia); inertia = 0; };
+function settle() {
+  clearTimeout(settleTimer);
+  settleTimer = setTimeout(() => { moving = false; requestDraw(); }, 140);
+}
+function turn(dx, dy) {
+  const k = 180 / (Math.PI * globeScale(size.w, size.h, zoom));
+  rot = [rot[0] + dx * k, clampLat(rot[1] - dy * k), 0];
+  moving = true;
+  clearTimeout(settleTimer);
+  requestDraw();
+}
+const localXY = (cx, cy) => { const r = hlCanvas.getBoundingClientRect(); return [cx - r.left, cy - r.top]; };
+
+function zoomGlobe(f, x = size.w / 2, y = size.h / 2) {
+  const next = clamp(zoom * f, 1, GLOBE_MAX);
+  if (next === zoom) return;
+  const off = Math.hypot(x - size.w / 2, y - size.h / 2);
+  const inside = off <= globeScale(size.w, size.h, zoom);
+  const a = inside ? globeProjection(size.w, size.h, rot, zoom).invert([x, y]) : null;
+  zoom = next;
+  const b = a ? globeProjection(size.w, size.h, rot, zoom).invert([x, y]) : null;
+  // keep the place under the pointer where it is
+  if (a && b) rot = [rot[0] + (((b[0] - a[0] + 540) % 360 + 360) % 360 - 180), clampLat(rot[1] + b[1] - a[1]), 0];
+  moving = true;
+  highlight = null;
+  requestDraw();
+  settle();
+  syncZoom();
+}
+function bindGestures(target, h) {
+  const pts = new Map();
+  let moved = false, x0 = 0, y0 = 0, t = 0, vx = 0, vy = 0, dist = 0;
+  const span = () => { const [a, b] = [...pts.values()]; return Math.hypot(a[0] - b[0], a[1] - b[1]); };
+  target.addEventListener('pointerdown', e => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    try { target.setPointerCapture(e.pointerId); } catch (err) {}
+    pts.set(e.pointerId, [e.clientX, e.clientY]);
+    if (pts.size === 1) { moved = false; x0 = e.clientX; y0 = e.clientY; t = performance.now(); vx = vy = 0; gesturing = true; h.start && h.start(); }
+    else if (pts.size === 2) { moved = true; dist = span(); }
+  });
+  target.addEventListener('pointermove', e => {
+    const q = pts.get(e.pointerId);
+    if (!q) { if (e.pointerType === 'mouse' && h.hover) h.hover(e); return; }
+    if (pts.size === 1) {
+      if (!moved && Math.hypot(e.clientX - x0, e.clientY - y0) < 5) return;
+      if (!moved) { moved = true; target.classList.add('dragging'); h.dragStart && h.dragStart(); }
+      const now = performance.now(), dt = Math.max(1, now - t), dx = e.clientX - q[0], dy = e.clientY - q[1];
+      vx = dx / dt; vy = dy / dt; t = now;
+      q[0] = e.clientX; q[1] = e.clientY;
+      h.pan(dx, dy);
+    } else if (pts.size === 2) {
+      q[0] = e.clientX; q[1] = e.clientY;
+      const d = span(), [a, b] = [...pts.values()];
+      if (dist > 0) h.pinch(d / dist, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2);
+      dist = d;
+    }
+  });
+  const finish = (e, cancelled) => {
+    if (!pts.delete(e.pointerId) || pts.size) return;
+    gesturing = false;
+    target.classList.remove('dragging');
+    h.end({ moved, cancelled, e, vx, vy, idle: performance.now() - t > 80 });
+  };
+  target.addEventListener('pointerup', e => finish(e, false));
+  target.addEventListener('pointercancel', e => finish(e, true));
+}
+bindGestures(hlCanvas, {
+  start: stopMotion,
+  dragStart: () => { highlight = null; showHint(); },
+  pan: turn,
+  pinch: (r, cx, cy) => zoomGlobe(r, ...localXY(cx, cy)),
+  hover: e => queueHover(...localXY(e.clientX, e.clientY)),
+  end: ({ moved, cancelled, e, vx, vy, idle }) => {
+    if (moved) {
+      if (!cancelled && !REDUCED && !idle && Math.hypot(vx, vy) > .1) coast(vx, vy);
+      else settle();
+      return;
+    }
+    if (cancelled) return;
+    const id = pickAt(...localXY(e.clientX, e.clientY));
+    if (id) act(id, e.altKey);
+  }
+});
+hlCanvas.addEventListener('pointerleave', () => { if (!gesturing) { hoverXY = null; hoverRegion = null; setHighlight(null); showHint(); } });
+function coast(vx, vy) {
+  let last = performance.now();
+  const step = now => {
+    const dt = Math.min(40, now - last);
+    last = now;
+    turn(vx * dt, vy * dt);
+    const f = Math.pow(.994, dt);
+    vx *= f; vy *= f;
+    if (Math.hypot(vx, vy) > .015) inertia = requestAnimationFrame(step);
+    else { inertia = 0; settle(); }
+  };
+  inertia = requestAnimationFrame(step);
+}
+hlCanvas.addEventListener('keydown', e => {
+  const moves = { ArrowLeft: [24, 0], ArrowRight: [-24, 0], ArrowUp: [0, 24], ArrowDown: [0, -24] };
+  if (moves[e.key]) {
+    e.preventDefault();
+    turn(...moves[e.key]);
+    settle();
+    const id = pickLL([-rot[0], -rot[1]]);
+    $('readout').textContent = id ? `正中央：${nameOf(id)}` : '正中央：海洋';
+  } else if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault();
+    const id = pickLL([-rot[0], -rot[1]]);
+    if (id) act(id, e.altKey); else say('正中央没有国家，先转到一个国家上。');
+  } else if (e.key === '+' || e.key === '=') {
+    e.preventDefault();
+    zoomGlobe(1.5);
+  } else if (e.key === '-') {
+    e.preventDefault();
+    zoomGlobe(1 / 1.5);
+  }
+});
+sheet.addEventListener('wheel', e => {
+  e.preventDefault();
+  const f = Math.exp(-e.deltaY * (e.ctrlKey ? .01 : .002));
+  if (view === 'globe') zoomGlobe(f, ...localXY(e.clientX, e.clientY));
+  else zoomFlat(f, e.clientX, e.clientY);
+}, { passive: false });
+function syncZoom() {
+  const k = view === 'globe' ? zoom : flatView.k, max = view === 'globe' ? GLOBE_MAX : FLAT_MAX;
+  $('zoom-in').disabled = k >= max;
+  $('zoom-out').disabled = $('zoom-home').disabled = k <= 1;
+}
+const zoomStep = f => {
+  if (view === 'globe') zoomGlobe(f);
+  else { const r = $('flat').getBoundingClientRect(); zoomFlat(f, r.left + r.width / 2, r.top + r.height / 2); }
+};
+$('zoom-in').addEventListener('click', () => zoomStep(1.6));
+$('zoom-out').addEventListener('click', () => zoomStep(1 / 1.6));
+$('zoom-home').addEventListener('click', () => {
+  if (view === 'globe') { zoom = 1; moving = false; requestDraw(); syncZoom(); }
+  else { flatView = { ...HOME }; applyFlatView(); relabel(); syncZoom(); }
+});
+
+let hoverXY = null;
+let hoverRegion = null;
+let focusMesh = null;
+let focusSlot = '';
+const meshCache = {};
+function setFocusMesh(id, level) {
+  const slot = `${id}:${level}`;
+  if (focusSlot === slot) return;
+  focusSlot = slot;
+  focusMesh = meshCache[slot] || null;
+  if (focusMesh) return;
+  loadAdmin(id, level).then(t => {
+    meshCache[slot] = t ? dropSeams(topojson.mesh(t, t.objects.r, (a, b) => a !== b).coordinates) : null;
+    if (focusSlot === slot) { focusMesh = meshCache[slot]; drawOverlay(); }
+  });
+}
+function hoverRegionAt(id, ll) {
+  const level = paintLevel;
+  setFocusMesh(id, level);
+  regionAt(id, level, ll).then(({ f }) => {
+    if (highlight !== id || level !== paintLevel || hoverRegion === f) return;
+    hoverRegion = f;
+    drawOverlay();
+    if (!f) return;
+    const key = regionKey(id, level, f), c = regionAssign.get(key) || assign.get(id);
+    $('readout').textContent = `${f.properties.z || f.properties.n}（${codeOf(key)}）· ${nameOf(id)} · ${c ? c.name : '未涂色'}`;
+  });
+}
+let hoverRaf = 0;
+function queueHover(x, y) {
+  hoverXY = [x, y];
+  if (hoverRaf) return;
+  hoverRaf = requestAnimationFrame(() => {
+    hoverRaf = 0;
+    if (!hoverXY || gesturing) return;
+    const id = pickAt(...hoverXY);
+    hlCanvas.classList.toggle('over', !!id);
+    if (id !== highlight) { hoverRegion = null; setHighlight(id); showCountry(id); }
+    if (id && paintLevel > 0) hoverRegionAt(id, lastLL);
+  });
+}
+function setHighlight(id) { highlight = id; drawOverlay(); }
+function showCountry(id) {
+  if (!id) return showHint();
+  const c = assign.get(id);
+  $('readout').textContent = `${nameOf(id)} · ${c ? c.name : '未涂色'}`;
+}
+function showHint() {
+  $('readout').textContent = view === 'flat' ? flatHint
+    : mode === 'paint' ? (paintLevel > 0 ? '点击行政区单独涂色，再点一次取消，按住 Option（Alt）点击直接还原；鼠标停在国家上会显示行政区和代码。拖动旋转，滚轮或双指缩放。' : '点击国家涂上当前颜色，再点一次取消，按住 Option（Alt）点击直接还原成未涂色。拖动旋转，滚轮或双指缩放。')
+    : '点击国家打开它的平面地图。拖动旋转，滚轮或双指缩放。';
+}
+
+function flyTo(id) {
+  const f = DATA.lo.byId[id] || (DATA.hi && DATA.hi.byId[id]);
+  if (!f) return;
+  const target = d3.geoCentroid(largestPolygon(f.geometry));
+  const from = rot.slice(), toL = -target[0], toP = clampLat(-target[1]);
+  const dL = ((toL - from[0] + 540) % 360 + 360) % 360 - 180, dP = toP - from[1];
+  stopMotion();
+  setHighlight(id);
+  showCountry(id);
+  if (REDUCED) { rot = [from[0] + dL, toP, 0]; moving = false; requestDraw(); return; }
+  const t0 = performance.now();
+  const step = now => {
+    const u = Math.min(1, (now - t0) / 600), e = u * u * (3 - 2 * u);
+    rot = [from[0] + dL * e, from[1] + dP * e, 0];
+    moving = true;
+    requestDraw();
+    if (u < 1) inertia = requestAnimationFrame(step);
+    else { inertia = 0; settle(); }
+  };
+  inertia = requestAnimationFrame(step);
+}
+
+/* ---- painting and opening ---- */
+// clear (Option or Alt held) puts the unit back to unpainted whichever brush is chosen
+function act(id, clear) {
+  if (mode === 'view') { openCountry(id); return; }
+  if (paintLevel === 0) togglePaint(id, clear);
+  else if (lastLL) paintRegionAt(id, lastLL, clear);
+}
+function togglePaint(id, clear) {
+  const c = clear ? null : activeCat();
+  const removing = !c || c.ids.includes(id);
+  for (const k of cfg.cats) k.ids = k.ids.filter(s => s !== id);
+  if (!removing) c.ids.push(id);
+  rebuildAssign();
+  refreshMap();
+  renderBrushes();
+  syncEditor();
+  commit();
+  showCountry(id);
+}
+function refreshMap() {
+  glDirty = true;
+  sheet.style.background = cfg.paper;
+  if (view === 'globe') requestDraw();
+  else queueFlat();
+}
+
+/* ---- country map ---- */
+function polygonsOf(geom) {
+  return geom.type === 'Polygon' ? [geom.coordinates] : geom.type === 'MultiPolygon' ? geom.coordinates : [];
+}
+function largestPolygon(geom) {
+  let best = null, area = -1;
+  for (const c of polygonsOf(geom)) {
+    const g = { type: 'Polygon', coordinates: c }, a = d3.geoArea(g);
+    if (a < 6.2 && a > area) { best = g; area = a; }
+  }
+  return best || geom;
+}
+const clusterCache = {};
+// Single-link clustering: islands near each other stay together (Indonesia), far territories separate (French Guiana).
+function clustersOf(f) {
+  if (clusterCache[f.id]) return clusterCache[f.id];
+  const items = polygonsOf(f.geometry).map(coords => {
+    const g = { type: 'Polygon', coordinates: coords };
+    const c = d3.geoCentroid(g);
+    let r = 0;
+    for (const p of coords[0]) { const d = d3.geoDistance(c, p); if (d > r) r = d; }
+    const la = c[1] / DEG, lo = c[0] / DEG;
+    return { g, area: d3.geoArea(g), r, v: [Math.cos(la) * Math.cos(lo), Math.cos(la) * Math.sin(lo), Math.sin(la)] };
+  });
+  // the allowed gap grows with the country, so a small mainland is not shrunk by islands that a large one would absorb
+  const biggest = items.reduce((a, b) => b.area > a.area ? b : a, items[0]);
+  const gap = Math.max(1.5, Math.min(8, biggest.r * DEG * .8)) / DEG;
+  const parent = items.map((_, i) => i);
+  const find = i => { while (parent[i] !== i) { parent[i] = parent[parent[i]]; i = parent[i]; } return i; };
+  for (let i = 0; i < items.length; i++) {
+    for (let j = i + 1; j < items.length; j++) {
+      const a = items[i], b = items[j];
+      const dot = Math.min(1, Math.max(-1, a.v[0] * b.v[0] + a.v[1] * b.v[1] + a.v[2] * b.v[2]));
+      if (Math.acos(dot) - a.r - b.r <= gap) parent[find(i)] = find(j);
+    }
+  }
+  const map = new Map();
+  items.forEach((it, i) => {
+    const k = find(i);
+    if (!map.has(k)) map.set(k, { area: 0, polys: [] });
+    const c = map.get(k);
+    c.area += it.area;
+    c.polys.push(it.g.coordinates);
+  });
+  const out = [...map.values()].sort((a, b) => b.area - a.area)
+    .map(c => ({ area: c.area, geom: { type: 'MultiPolygon', coordinates: c.polys } }));
+  clusterCache[f.id] = out;
+  return out;
+}
+function conicFor(geom) {
+  const [[w, s], [e0, n]] = d3.geoBounds(geom);
+  const e = e0 < w ? e0 + 360 : e0;
+  const lam = (w + e) / 2;
+  return d3.geoConicEqualArea()
+    .parallels([s + (n - s) / 6, n - (n - s) / 6])
+    .rotate([-lam, 0])
+    .center([0, (s + n) / 2]);
+}
+function flatLayout(f) {
+  const full = [[24, 24], [FLAT.w - 24, FLAT.h - 24]];
+  if (f.id === 'USA') return { proj: d3.geoAlbersUsa().fitExtent(full, f), core: f.geometry, insets: [], omitted: 0 };
+  if (f.id === 'ATA') {
+    const proj = d3.geoAzimuthalEqualArea().rotate([0, 90]).fitExtent(full, f);
+    return { proj, core: f.geometry, insets: [], omitted: 0 };
+  }
+  if (f.id === 'CHN') {
+    const near = polygonsOf(f.geometry).filter(c => d3.geoCentroid({ type: 'Polygon', coordinates: c })[1] >= 17.5);
+    const core = { type: 'MultiPolygon', coordinates: near };
+    const proj = conicFor(core).fitExtent(full, core);
+    proj.clipExtent([[0, 0], [FLAT.w, FLAT.h]]);
+    return { proj, core, insets: [], omitted: 0, scs: true };
+  }
+  const clusters = clustersOf(f).slice();
+  // where the biggest piece is not the homeland (Greenland is far larger than Denmark), name the homeland
+  const home = CORE_POINT[f.id] && clusters.findIndex(c => d3.geoContains(c.geom, CORE_POINT[f.id]));
+  if (home > 0) clusters.unshift(clusters.splice(home, 1)[0]);
+  const core = clusters[0].geom, rest = clusters.slice(1);
+  const insets = rest.slice(0, 6), omitted = rest.length - insets.length;
+  const bottom = insets.length ? FLAT.h - 112 : FLAT.h - 24;
+  const proj = conicFor(core).fitExtent([[24, 24], [FLAT.w - 24, bottom]], core);
+  proj.clipExtent([[0, 0], [FLAT.w, FLAT.h]]);
+  return { proj, core, insets, omitted };
+}
+const SUFFIX = /(维吾尔自治区|壮族自治区|回族自治区|自治共和国|特别行政区|自治区|直辖市|大区|省|市|州|邦|县|郡|府)$/;
+function shortName(s) {
+  const t = s.replace(SUFFIX, '');
+  return t.length >= 2 ? t : s;
+}
+const measure = document.createElement('canvas').getContext('2d');
+const textWidth = (s, size, weight = 500) => { measure.font = `${weight} ${size}px ${FONT}`; return measure.measureText(s).width; };
+function addText(parent, s, x, y, size, weight, fill, anchor, halo, haloWidth) {
+  const t = el('text', { x: +x.toFixed(2), y: +y.toFixed(2), 'font-family': FONT, 'font-size': +size.toFixed(3), 'font-weight': weight, fill, 'text-anchor': anchor, class: 'nohit' }, parent);
+  if (halo) { t.setAttribute('stroke', halo); t.setAttribute('stroke-width', +haloWidth.toFixed(3)); t.setAttribute('stroke-linejoin', 'round'); t.setAttribute('paint-order', 'stroke'); }
+  t.textContent = s;
+  return t;
+}
+// a ring around a hole (Brandenburg around Berlin) has its centroid in the hole, so look for a nearby point inside
+function labelPoint(piece, path, proj, tw, th) {
+  const c = path.centroid(piece);
+  const at = q => { const ll = proj.invert ? proj.invert(q) : null; return ll && d3.geoContains(piece, ll); };
+  // the whole label box should sit inside, not just its centre
+  const inside = q => at(q) && at([q[0] - tw / 2, q[1] - th]) && at([q[0] + tw / 2, q[1] - th]) && at([q[0] - tw / 2, q[1] + th]) && at([q[0] + tw / 2, q[1] + th]);
+  if (!isFinite(c[0]) || inside(c)) return c;
+  const [[x0, y0], [x1, y1]] = path.bounds(piece);
+  let best = null, dist = Infinity;
+  for (let i = 1; i < 8; i++) for (let j = 1; j < 8; j++) {
+    const q = [x0 + (x1 - x0) * i / 8, y0 + (y1 - y0) * j / 8];
+    const d = (q[0] - c[0]) ** 2 + (q[1] - c[1]) ** 2;
+    if (d < dist && inside(q)) { best = q; dist = d; }
+  }
+  return best || c;
+}
+function labelItems(regions, path, id, prefix = '', proj) {
+  const items = [];
+  for (const r of regions) {
+    const piece = { type: 'Feature', geometry: largestPolygon(r.geometry) };
+    const [[x0, y0], [x1, y1]] = path.bounds(piece);
+    if (!isFinite(x0)) continue;
+    const p = r.properties;
+    const text = id === 'USA' && p.c ? p.c : shortName(p.z || p.n);
+    const ts = cfg.labelSize, tw = textWidth(text, ts);
+    const [cx, cy] = proj ? labelPoint(piece, path, proj, tw, ts * .6) : path.centroid(piece);
+    if (!isFinite(cx)) continue;
+    items.push({ key: prefix + r.id, text, cx, cy, tw, ts, bw: x1 - x0, bh: y1 - y0, area: path.area(piece) });
+  }
+  return items.sort((a, b) => b.area - a.area);
+}
+// the type keeps its size on screen, so zooming in lets more names fit
+function placeLabels(ctx, v) {
+  ctx.g.textContent = '';
+  if (!cfg.labels) return;
+  const ts = cfg.labelSize, size = ts / v.k, x1 = v.x + FLAT.w / v.k, y1 = v.y + FLAT.h / v.k, placed = [];
+  for (const it of ctx.items) {
+    if (it.cx < v.x || it.cx > x1 || it.cy < v.y || it.cy > y1) continue;
+    // widths were measured at the size in use when the map was built; scale them while the slider moves
+    const w = it.tw * (ts / it.ts) / v.k;
+    if (w > it.bw * .92 || size * 1.1 > it.bh * .85) continue;
+    const m = 2 / v.k, h = ts * .67 / v.k;
+    const box = [it.cx - w / 2 - m, it.cy - h, it.cx + w / 2 + m, it.cy + h];
+    if (placed.some(b => box[0] < b[2] && box[2] > b[0] && box[1] < b[3] && box[3] > b[1])) continue;
+    placed.push(box);
+    const rc = regionAssign.get(`${ctx.id}/${it.key}`);
+    const color = rc ? textOn(averaged(rc)) : ctx.color, halo = rc ? (rc.style === 'stripes' ? rc.color : null) : ctx.halo;
+    addText(ctx.g, it.text, it.cx, it.cy + size * .35, size, 500, color, 'middle', halo, 2.4 * ts / 10.5 / v.k);
+  }
+}
+function drawSeaInset(node, set, fill) {
+  const w = 150, h = 196, x = FLAT.w - 24 - w, y = FLAT.h - 24 - h;
+  const g = el('g', { class: 'nohit' }, node);
+  el('rect', { x, y, width: w, height: h, fill: cfg.paper, stroke: '#000', 'stroke-opacity': .3, 'stroke-width': .6, 'data-sw': .6 }, g);
+  const corners = { type: 'MultiPoint', coordinates: [[105, 1.5], [124, 1.5], [124, 25.5], [105, 25.5]] };
+  const ip = d3.geoConicEqualArea().parallels([5, 20]).rotate([-114.5, 0]).center([0, 13.5]).fitExtent([[x + 4, y + 4], [x + w - 4, y + h - 18]], corners);
+  ip.clipExtent([[x + 1, y + 1], [x + w - 1, y + h - 16]]);
+  const path = d3.geoPath(ip).digits(2);
+  for (const f of set.feats) {
+    const b = f.bbox;
+    if (b[2] < 98 || b[0] > 130 || b[3] < -3 || b[1] > 30) continue;
+    const d = path(f);
+    if (d) el('path', { d, fill: f.id === 'CHN' ? fill : cfg.base, stroke: '#000', 'stroke-opacity': .3, 'stroke-width': .4, 'data-sw': .4 }, g);
+  }
+  el('path', { d: path(DASHES) || '', fill: 'none', stroke: '#000', 'stroke-opacity': .75, 'stroke-width': 1.2, 'data-sw': 1.2 }, g);
+  addText(g, '南海诸岛', x + w / 2, y + h - 5, 9, 500, textOn(cfg.paper), 'middle');
+}
+async function buildFlat(id, node, view = HOME) {
+  const set = await hiReady;
+  const f = set.byId[id] || DATA.lo.byId[id];
+  const adminTopo = await loadAdmin(id);
+  const wantsAdm2 = cfg.adm2 || paintLevel === 2 || [...regionAssign.keys()].some(k => k.startsWith(id + '/2:'));
+  const adm2Topo = wantsAdm2 ? await loadAdmin(id, 2) : null;
+  node.textContent = '';
+  node.setAttribute('viewBox', `0 0 ${FLAT.w} ${FLAT.h}`);
+  el('rect', { x: 0, y: 0, width: FLAT.w, height: FLAT.h, fill: cfg.paper }, node);
+  const c = assign.get(id);
+  const defs = el('defs', {}, node);
+  const fills = new Map();
+  const catFill = cat => {
+    if (!cat) return cfg.base;
+    if (cat.style !== 'stripes') return cat.color;
+    if (!fills.has(cat.id)) {
+      const pid = `hatch-${node.dataset.key}-${cat.id}`;
+      const p = el('pattern', { id: pid, patternUnits: 'userSpaceOnUse', width: 7, height: 7, patternTransform: 'rotate(45)', 'data-hatch': 1 }, defs);
+      el('rect', { width: 7, height: 7, fill: cat.color }, p);
+      el('rect', { width: 2.7, height: 7, fill: cat.stripe }, p);
+      fills.set(cat.id, `url(#${pid})`);
+    }
+    return fills.get(cat.id);
+  };
+  const fill = catFill(c);
+  const { proj, core, insets, omitted, scs } = flatLayout(f);
+  const path = d3.geoPath(proj).digits(2);
+  const paper = el('g', {}, node);
+  el('path', { d: path(core) || '', fill, stroke: fill, 'stroke-width': .4, 'data-sw': .4, class: 'nohit' }, paper);
+  const regions = adminTopo ? topojson.feature(adminTopo, adminTopo.objects.r).features : [];
+  for (const r of regions) {
+    const rc = regionAssign.get(`${id}/${r.id}`);
+    const d = rc && path(r);
+    if (!d) continue;
+    const rf = catFill(rc);
+    el('path', { d, fill: rf, stroke: rf, 'stroke-width': .4, 'data-sw': .4, class: 'nohit' }, paper);
+  }
+  const regions2 = adm2Topo ? topojson.feature(adm2Topo, adm2Topo.objects.r).features : [];
+  for (const r of regions2) {
+    const rc = regionAssign.get(`${id}/2:${r.id}`);
+    const d = rc && path(r);
+    if (!d) continue;
+    const rf = catFill(rc);
+    el('path', { d, fill: rf, stroke: rf, 'stroke-width': .3, 'data-sw': .3, class: 'nohit' }, paper);
+  }
+  if (cfg.adm2 && adm2Topo) {
+    const mesh2 = dropSeams(topojson.mesh(adm2Topo, adm2Topo.objects.r, (a, b) => a !== b).coordinates);
+    el('path', { d: path(mesh2) || '', fill: 'none', stroke: '#000', 'stroke-opacity': .14, 'stroke-width': .35, 'data-sw': .35, 'stroke-linejoin': 'round', class: 'nohit' }, paper);
+  }
+  if (cfg.admin && adminTopo) {
+    const mesh = dropSeams(topojson.mesh(adminTopo, adminTopo.objects.r, (a, b) => a !== b).coordinates);
+    el('path', { d: path(mesh) || '', fill: 'none', stroke: '#000', 'stroke-opacity': .24, 'stroke-width': .5, 'data-sw': .5, 'stroke-linejoin': 'round', class: 'nohit' }, paper);
+  }
+  const outline = [];
+  for (const poly of polygonsOf(core)) for (const ring of poly) outline.push(ring);
+  el('path', { d: path(dropSeams(outline)) || '', fill: 'none', stroke: '#000', 'stroke-opacity': .36, 'stroke-width': .6, 'data-sw': .6, 'stroke-linejoin': 'round', class: 'nohit' }, paper);
+  // the southern dashes live in the corner map; only those beside Taiwan belong on the main sheet
+  if (scs) el('path', { d: path({ type: 'MultiLineString', coordinates: META.dashes.filter(l => l.every(q => q[1] >= 17)) }) || '', fill: 'none', stroke: '#000', 'stroke-opacity': .75, 'stroke-width': 1.3, 'data-sw': 1.3, class: 'nohit' }, paper);
+  if (id === 'DEU' && cfg.gdr) el('path', { d: path(GDR) || '', fill: 'none', stroke: '#000', 'stroke-opacity': .7, 'stroke-width': 1.2, 'data-sw': 1.2, 'stroke-dasharray': '5 3.5', 'data-dash': '5 3.5', class: 'nohit' }, paper);
+  const hitLevel = paintLevel === 2 && regions2.length ? 2 : 1;
+  for (const r of hitLevel === 2 ? regions2 : regions) {
+    const d = path(r);
+    if (!d) continue;
+    el('path', { d, fill: 'transparent', 'data-ui': 1, 'data-key': (hitLevel === 2 ? '2:' : '') + r.id, 'data-name': r.properties.z || r.properties.n }, paper);
+  }
+  const ctx = {
+    g: el('g', {}, paper),
+    id,
+    items: hitLevel === 2 ? labelItems(regions2, path, id, '2:', proj) : labelItems(regions, path, id, '', proj),
+    color: textOn(c ? averaged(c) : cfg.base),
+    halo: c && c.style === 'stripes' ? c.color : null
+  };
+  placeLabels(ctx, view);
+  if (scs) drawSeaInset(node, set, fill);
+  const boxW = 136, boxH = 84, top = FLAT.h - 12 - boxH;
+  insets.forEach((inset, i) => {
+    const x = 24 + i * (boxW + 10);
+    const g = el('g', {}, node);
+    el('rect', { x, y: top, width: boxW, height: boxH, fill: 'none', stroke: '#000', 'stroke-opacity': .2, 'stroke-width': .6, 'data-sw': .6, class: 'nohit' }, g);
+    const ip = conicFor(inset.geom).fitExtent([[x + 8, top + 6], [x + boxW - 8, top + boxH - 20]], inset.geom);
+    const ipath = d3.geoPath(ip).digits(2);
+    const named = (INSET_LABELS[id] || []).find(([pt]) => d3.geoContains(inset.geom, pt));
+    const label = named ? named[1] : insetName(inset, regions);
+    el('path', { d: ipath(inset.geom) || '', fill, stroke: '#000', 'stroke-opacity': .36, 'stroke-width': .5, 'data-sw': .5, 'data-name': label || nameOf(id) }, g);
+    if (label) {
+      let s = label;
+      while (s.length > 2 && textWidth(s, 9) > boxW - 10) s = s.slice(0, -1);
+      addText(g, s, x + boxW / 2, top + boxH - 6, 9, 500, textOn(cfg.paper), 'middle');
+    }
+  });
+  return { insets: insets.length, omitted, regions: regions.length, regions2: regions2.length, ctx };
+}
+function insetName(inset, regions) {
+  if (!regions.length) return '';
+  const c = d3.geoCentroid(largestPolygon(inset.geom));
+  let best = null, dist = Infinity;
+  for (const r of regions) {
+    if (d3.geoContains(r, c)) { best = r; break; }
+    const d = d3.geoDistance(c, d3.geoCentroid(r));
+    if (d < dist) { dist = d; best = r; }
+  }
+  return best ? shortName(best.properties.z || best.properties.n) : '';
+}
+
+let flatId = null;
+let paintLevel = 0;
+let flatView = { ...HOME };
+let flatCtx = null;
+let relabelTimer = 0;
+function applyFlatView() {
+  const n = $('flat'), v = flatView;
+  n.setAttribute('viewBox', `${v.x.toFixed(2)} ${v.y.toFixed(2)} ${(FLAT.w / v.k).toFixed(2)} ${(FLAT.h / v.k).toFixed(2)}`);
+  n.querySelectorAll('[data-sw]').forEach(p => p.setAttribute('stroke-width', (+p.dataset.sw / v.k).toFixed(4)));
+  n.querySelectorAll('[data-hatch]').forEach(p => p.setAttribute('patternTransform', `rotate(45) scale(${(1 / v.k).toFixed(4)})`));
+  n.querySelectorAll('[data-dash]').forEach(p => p.setAttribute('stroke-dasharray', p.dataset.dash.split(' ').map(x => (x / v.k).toFixed(3)).join(' ')));
+}
+function relabel() {
+  clearTimeout(relabelTimer);
+  relabelTimer = setTimeout(() => { if (flatCtx && view === 'flat') placeLabels(flatCtx, flatView); }, 90);
+}
+function clampFlat(v) {
+  v.x = clamp(v.x, 0, FLAT.w - FLAT.w / v.k);
+  v.y = clamp(v.y, 0, FLAT.h - FLAT.h / v.k);
+  return v;
+}
+function zoomFlat(f, cx, cy) {
+  const k = clamp(flatView.k * f, 1, FLAT_MAX);
+  if (k === flatView.k) return;
+  const m = $('flat').getScreenCTM().inverse();
+  const px = m.a * cx + m.c * cy + m.e, py = m.b * cx + m.d * cy + m.f;
+  const r = flatView.k / k;
+  flatView = clampFlat({ k, x: px - (px - flatView.x) * r, y: py - (py - flatView.y) * r });
+  applyFlatView();
+  relabel();
+  syncZoom();
+}
+function panFlat(dx, dy) {
+  const m = $('flat').getScreenCTM();
+  flatView = clampFlat({ k: flatView.k, x: flatView.x - dx / m.a, y: flatView.y - dy / m.d });
+  applyFlatView();
+  relabel();
+}
+bindGestures($('flat'), {
+  pan: panFlat,
+  pinch: zoomFlat,
+  end: ({ moved, cancelled, e }) => {
+    relabel();
+    if (moved || cancelled) return;
+    const t = document.elementFromPoint(e.clientX, e.clientY);
+    if (!(t && t.dataset && t.dataset.key)) return;
+    if (paintLevel === 0) { togglePaint(flatId, e.altKey); syncFlatBar(); }
+    else toggleRegion(`${flatId}/${t.dataset.key}`, t.dataset.name, e.altKey);
+  }
+});
+function toggleRegion(key, name, clear) {
+  const c = clear ? null : activeCat();
+  const removing = !c || c.regions.includes(key);
+  for (const k of cfg.cats) k.regions = k.regions.filter(r => r !== key);
+  if (!removing) c.regions.push(key);
+  rebuildAssign();
+  refreshMap();
+  renderBrushes();
+  syncEditor();
+  commit();
+  const now = regionAssign.get(key);
+  $('readout').textContent = `${name}（${codeOf(key)}）· ${now ? now.name : '跟随国家颜色'}`;
+}
+let flatHint = '';
+let flatToken = 0;
+let flatRaf = 0;
+function queueFlat() {
+  if (flatRaf) return;
+  flatRaf = requestAnimationFrame(() => { flatRaf = 0; renderFlat(); });
+}
+async function renderFlat() {
+  if (!flatId) return;
+  const token = ++flatToken;
+  const scratch = document.createElementNS(NS, 'svg');
+  scratch.dataset.key = 'flat';
+  const info = await buildFlat(flatId, scratch, flatView);
+  if (token !== flatToken) return;
+  const node = $('flat');
+  node.replaceChildren(...scratch.childNodes);
+  flatCtx = info.ctx;
+  applyFlatView();
+  const bits = [];
+  if (info.insets) bits.push('插图的比例和主图不同。');
+  if (info.omitted) bits.push(`另有 ${info.omitted} 处小块领土没有显示。`);
+  if (!info.regions) bits.push('这个地区没有下一级行政区数据。');
+  if (flatId === 'DEU' && cfg.gdr) bits.push('虚线是 1951–1990 年的东西德边界和西柏林边界。');
+  if (paintLevel === 2 && !info.regions2) bits.push('这个国家没有二级行政区数据，点击时会涂一级行政区。');
+  flatHint = (bits.join('') || '把鼠标移到行政区上可以看名称。') + (paintLevel === 0 ? '现在点击会给整个国家涂色，上方可以切到一级或二级行政区。' : '点击行政区可以单独涂色，再点一次取消。') + '按住 Option（Alt）点击可以直接还原。' + '滚轮或双指缩放，拖动平移。';
+  showHint();
+  $('load-note').textContent = '';
+  syncFlatBar();
+}
+function syncFlatBar() {
+  if (!flatId) return;
+  $('flat-name').textContent = nameOf(flatId);
+  const c = activeCat(), cur = assign.get(flatId);
+  const removing = !c ? !!cur : cur === c;
+  $('flat-paint').textContent = !c ? '取消涂色' : removing ? `取消“${c.name}”` : `涂上“${c.name}”`;
+  $('flat-paint').disabled = !c && !cur;
+}
+function openCountry(id) {
+  flatId = id;
+  flatCtx = null;
+  flatView = { ...HOME };
+  view = 'flat';
+  syncZoom();
+  highlight = null;
+  moving = false;
+  stopMotion();
+  $('globe-bar').hidden = true;
+  $('flat-bar').hidden = false;
+  showGlobeCanvases(false);
+  $('flat').removeAttribute('hidden');
+  $('flat').replaceChildren();
+  $('flat').setAttribute('aria-label', nameOf(id) + '的平面地图');
+  $('load-note').textContent = '正在绘制…';
+  syncFlatBar();
+  renderFlat();
+  $('back').focus();
+}
+function closeCountry() {
+  const id = flatId;
+  flatId = null;
+  flatToken++;
+  view = 'globe';
+  $('flat-bar').hidden = true;
+  $('globe-bar').hidden = false;
+  $('flat').setAttribute('hidden', '');
+  showGlobeCanvases(true);
+  resize();
+  drawBase();
+  showHint();
+  syncZoom();
+  hlCanvas.focus();
+  return id;
+}
+$('back').addEventListener('click', closeCountry);
+for (const id of ['lvl-0', 'lvl-1', 'lvl-2', 'unit-0', 'unit-1', 'unit-2']) $(id).addEventListener('change', e => setUnit(+e.target.value));
+function setUnit(n) {
+  paintLevel = n;
+  for (const k of [0, 1, 2]) { $('unit-' + k).checked = k === n; $('lvl-' + k).checked = k === n; }
+  hoverRegion = null;
+  if (view === 'flat') { $('load-note').textContent = n === 2 ? '正在加载二级行政区…' : ''; renderFlat(); return; }
+  if (n > 0) setMode('paint');
+  drawOverlay();
+  showHint();
+}
+$('flat-paint').addEventListener('click', () => { togglePaint(flatId); syncFlatBar(); });
+$('flat').addEventListener('pointerover', e => {
+  const name = e.target.dataset ? e.target.dataset.name : null;
+  const key = name && e.target.dataset.key;
+  if (name) $('readout').textContent = key ? `${name}（${codeOf(`${flatId}/${key}`)}）` : name;
+});
+$('flat').addEventListener('pointerleave', showHint);
+
+/* ---- brush bar ---- */
+function renderBrushes() {
+  const box = $('brushes');
+  box.textContent = '';
+  const add = (id, name, css, count) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'chip';
+    b.dataset.id = id;
+    b.setAttribute('aria-pressed', String(active === id));
+    const sw = document.createElement('span');
+    sw.className = 'sw';
+    sw.style.background = css;
+    const label = document.createElement('span');
+    label.textContent = name;
+    const n = document.createElement('span');
+    n.className = 'n';
+    n.textContent = count;
+    b.append(sw, label, n);
+    box.appendChild(b);
+  };
+  let used = 0;
+  for (const c of cfg.cats) { add(c.id, c.name, swatchCss(c), c.regions.length ? `${c.ids.length} · ${c.regions.length} 区` : c.ids.length); used += c.ids.length; }
+  add(BASE, '未涂色', cfg.base, CODES.size - used);
+  const plus = document.createElement('button');
+  plus.type = 'button';
+  plus.className = 'chip add';
+  plus.id = 'add-cat';
+  plus.textContent = '添加颜色';
+  box.appendChild(plus);
+}
+function setMode(next) {
+  mode = next;
+  $('mode-paint').checked = mode === 'paint';
+  $('mode-view').checked = mode === 'view';
+  if (view === 'globe') showHint();
+}
+$('mode-paint').addEventListener('change', () => setMode('paint'));
+$('mode-view').addEventListener('change', () => setMode('view'));
+
+$('brushes').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  if (b.id === 'add-cat') {
+    const color = NEW_COLORS.find(h => !cfg.cats.some(c => c.color === h)) || NEW_COLORS[0];
+    let i = cfg.cats.length + 1;
+    while (cfg.cats.some(c => c.id === 'c' + i)) i++;
+    cfg.cats.push({ id: 'c' + i, name: '颜色 ' + i, style: 'solid', color, stripe: '#d3d8e0', ids: [], regions: [] });
+    active = 'c' + i;
+    setMode('paint');
+    renderAll();
+    commit();
+    $('cat-name').focus();
+    $('cat-name').select();
+    return;
+  }
+  active = b.dataset.id;
+  setMode('paint');
+  renderBrushes();
+  syncEditor();
+  syncFlatBar();
+  $('brushes').querySelector(`[data-id="${active}"]`).focus();
+});
+
+/* ---- editor ---- */
+function syncEditor() {
+  const c = activeCat();
+  const isBase = !c;
+  $('f-name').hidden = $('f-style').hidden = $('f-ids').hidden = $('cat-delete').hidden = isBase;
+  $('f-stripe').hidden = isBase || c.style !== 'stripes';
+  $('ed-title').textContent = isBase ? '未涂色的国家' : '当前颜色';
+  $('color-label').textContent = isBase ? '填充颜色' : (c.style === 'stripes' ? '底色' : '颜色');
+  const color = isBase ? cfg.base : c.color;
+  $('cat-color').value = color;
+  $('cat-hex').value = color;
+  $('ids-err').hidden = true;
+  if (c) {
+    $('cat-name').value = c.name;
+    $('style-solid').checked = c.style === 'solid';
+    $('style-stripes').checked = c.style === 'stripes';
+    $('cat-stripe').value = c.stripe;
+    $('cat-stripe-hex').value = c.stripe;
+    $('cat-ids').value = c.ids.map(nameOf).join('、');
+    const where = [...new Set(c.regions.map(r => nameOf(r.slice(0, 3))))].join('、');
+    $('cat-regs').value = c.regions.map(codeOf).join(', ');
+    $('regs-err').hidden = true;
+    $('cat-regions').textContent = c.regions.length
+      ? `共 ${c.regions.length} 个，分布在${where}。把鼠标移到行政区上可以看到代码，二级如 USA-0412，一级如 USA.US-CA。`
+      : '把涂色单位切到“一级”或“二级”，点击行政区就能单独涂色；也可以在这里直接输入代码。';
+  }
+}
+function syncBase() {
+  $('paper').value = cfg.paper;
+  $('paper-hex').value = cfg.paper;
+  $('ocean').value = cfg.ocean;
+  $('ocean-hex').value = cfg.ocean;
+  $('t-admin').checked = cfg.admin;
+  $('t-labels').checked = cfg.labels;
+  $('label-size').value = cfg.labelSize;
+  $('label-size').disabled = !cfg.labels;
+  $('label-size-out').textContent = `${cfg.labelSize} px`;
+  $('t-grat').checked = cfg.graticule;
+  $('t-gdr').checked = cfg.gdr;
+  $('t-adm2').checked = cfg.adm2;
+}
+function syncCfgText() { if ($('cfg-box').open) $('cfg-text').value = JSON.stringify(cfg, null, 2); }
+function renderAll() { rebuildAssign(); refreshMap(); renderBrushes(); syncEditor(); syncBase(); syncCfgText(); syncFlatBar(); }
+
+function bindColor(pick, text, get, set) {
+  const live = v => { set(v.toLowerCase()); refreshMap(); renderBrushes(); };
+  pick.addEventListener('input', () => { text.value = pick.value; live(pick.value); });
+  pick.addEventListener('change', commit);
+  text.addEventListener('input', () => {
+    let v = text.value.trim();
+    if (v && v[0] !== '#') v = '#' + v;
+    if (HEX.test(v)) { pick.value = v; live(v); }
+  });
+  text.addEventListener('blur', () => { text.value = get(); commit(); });
+}
+bindColor($('cat-color'), $('cat-hex'),
+  () => (activeCat() ? activeCat().color : cfg.base),
+  v => { const c = activeCat(); if (c) c.color = v; else cfg.base = v; });
+bindColor($('cat-stripe'), $('cat-stripe-hex'),
+  () => activeCat() ? activeCat().stripe : '',
+  v => { const c = activeCat(); if (c) c.stripe = v; });
+bindColor($('paper'), $('paper-hex'), () => cfg.paper, v => { cfg.paper = v; });
+bindColor($('ocean'), $('ocean-hex'), () => cfg.ocean, v => { cfg.ocean = v; });
+
+$('cat-name').addEventListener('input', e => {
+  const c = activeCat();
+  if (!c) return;
+  c.name = e.target.value;
+  renderBrushes();
+  syncFlatBar();
+});
+$('cat-name').addEventListener('change', commit);
+for (const id of ['style-solid', 'style-stripes']) {
+  $(id).addEventListener('change', e => {
+    const c = activeCat();
+    if (!c) return;
+    c.style = e.target.value;
+    refreshMap();
+    renderBrushes();
+    syncEditor();
+    commit();
+  });
+}
+$('cat-ids').addEventListener('change', e => {
+  const c = activeCat();
+  if (!c) return;
+  const tokens = e.target.value.split(/[,，、;；\n]+/).map(t => t.trim()).filter(Boolean);
+  const bad = [], good = [];
+  for (const t of tokens) {
+    const id = LOOKUP.get(t.toLowerCase());
+    if (!id) bad.push(t);
+    else if (!good.includes(id)) good.push(id);
+  }
+  for (const k of cfg.cats) k.ids = k.ids.filter(s => !good.includes(s));
+  c.ids = good;
+  renderAll();
+  commit();
+  if (bad.length) {
+    $('cat-ids').value = c.ids.map(nameOf).concat(bad).join('、');
+    $('ids-err').textContent = `没有找到：${bad.join('、')}。其余的国家已经涂好。`;
+    $('ids-err').hidden = false;
+  }
+});
+$('cat-regs').addEventListener('change', async e => {
+  const c = activeCat();
+  if (!c) return;
+  const tokens = e.target.value.split(/[,，、;；\n]+/).map(t => t.trim()).filter(Boolean);
+  const keys = [], bad = [];
+  for (const t of tokens) { const k = keyOfCode(t); if (k) keys.push(k); else bad.push(t); }
+  const ok = [];
+  // check every code against its country's file before painting
+  for (const k of [...new Set(keys)]) {
+    const rest = k.slice(4), level = rest.startsWith('2:') ? 2 : 1, id = level === 2 ? rest.slice(2) : rest;
+    const list = CODES.has(k.slice(0, 3)) ? await regionFeatures(k.slice(0, 3), level) : [];
+    if (list.some(f => f.id === id)) ok.push(k); else bad.push(codeOf(k));
+  }
+  for (const k of cfg.cats) k.regions = k.regions.filter(r => !ok.includes(r));
+  c.regions = ok;
+  renderAll();
+  commit();
+  if (bad.length) {
+    $('cat-regs').value = ok.map(codeOf).concat(bad).join(', ');
+    $('regs-err').textContent = `没有找到这些代码：${bad.join('、')}。其余的已经涂好。`;
+    $('regs-err').hidden = false;
+  }
+});
+$('cat-delete').addEventListener('click', () => {
+  const i = cfg.cats.findIndex(c => c.id === active);
+  if (i < 0) return;
+  const name = cfg.cats[i].name;
+  cfg.cats.splice(i, 1);
+  active = cfg.cats[Math.min(i, cfg.cats.length - 1)]?.id || BASE;
+  renderAll();
+  commit();
+  say(`已删除“${name}”。它涂过的国家变回未涂色，点“撤销”可以恢复。`);
+});
+for (const [id, key] of [['t-labels', 'labels'], ['t-grat', 'graticule'], ['t-admin', 'admin'], ['t-gdr', 'gdr'], ['t-adm2', 'adm2']]) {
+  $(id).addEventListener('change', e => {
+    cfg[key] = e.target.checked;
+    if (key === 'admin' && cfg.admin) ensureAdmin();
+    refreshMap();
+    syncBase();
+    commit();
+  });
+}
+$('label-size').addEventListener('input', e => {
+  cfg.labelSize = +e.target.value;
+  $('label-size-out').textContent = `${cfg.labelSize} px`;
+  if (view === 'flat' && flatCtx) placeLabels(flatCtx, flatView);
+});
+// once the slider settles, rebuild so label positions are chosen for the new size
+$('label-size').addEventListener('change', () => { refreshMap(); commit(); });
+$('undo').addEventListener('click', () => {
+  if (!undoStack.length) return;
+  lastSaved = undoStack.pop();
+  cfg = JSON.parse(lastSaved);
+  if (active !== BASE && !activeCat()) active = cfg.cats[0]?.id || BASE;
+  $('undo').disabled = !undoStack.length;
+  persist();
+  renderAll();
+});
+$('reset').addEventListener('click', () => {
+  cfg = normalize(clone(SAMPLE));
+  active = cfg.cats[0].id;
+  renderAll();
+  commit();
+  say('已恢复示例配色，点“撤销”可以回到刚才的版本。');
+});
+
+/* ---- search ---- */
+const findList = $('find-list');
+for (const [id, z, n] of META.names.slice().sort((a, b) => a[1].localeCompare(b[1], 'zh'))) {
+  const o = document.createElement('option');
+  o.value = z;
+  o.label = n;
+  findList.appendChild(o);
+}
+$('find').addEventListener('change', e => {
+  const t = e.target.value.trim();
+  if (!t) return;
+  const id = LOOKUP.get(t.toLowerCase());
+  if (id) { flyTo(id); e.target.value = ''; }
+  else say(`没有找到“${t}”。可以试试中文名、英文名或三位代码。`);
+});
+
+/* ---- export ---- */
+function say(text) { $('msg').textContent = text; }
+function flatExportNode() {
+  const node = $('flat').cloneNode(true);
+  node.querySelectorAll('[data-ui]').forEach(n => n.remove());
+  node.querySelectorAll('[data-name],[class],[data-sw],[data-hatch],[data-dash],[data-key]').forEach(n => { for (const a of ['data-name', 'class', 'data-sw', 'data-hatch', 'data-dash', 'data-key']) n.removeAttribute(a); });
+  for (const a of ['role', 'aria-label', 'id', 'hidden']) node.removeAttribute(a);
+  node.setAttribute('xmlns', NS);
+  return node;
+}
+function globeSvgNode() {
+  const set = DATA.hi || DATA.lo, w = size.w, h = size.h;
+  const p = globeProjection(w, h, rot, zoom), path = d3.geoPath(p).digits(2);
+  const vis = visAngle(w, h, zoom), fine = zoom > 1.5;
+  const node = el('svg', { xmlns: NS, viewBox: `0 0 ${w} ${h}`, width: 2000, height: Math.round(2000 * h / w) });
+  const defs = el('defs', {}, node);
+  el('rect', { width: w, height: h, fill: cfg.paper }, node);
+  el('path', { d: path(SPHERE), fill: cfg.ocean }, node);
+  if (cfg.graticule) el('path', { d: path(GRATICULE) || '', fill: 'none', stroke: '#000', 'stroke-opacity': .06, 'stroke-width': .5 }, node);
+  const fills = new Map();
+  const fillOf = c => {
+    if (!c) return cfg.base;
+    if (c.style !== 'stripes') return c.color;
+    if (!fills.has(c.id)) {
+      const pid = 'hatch-' + c.id;
+      const pat = el('pattern', { id: pid, patternUnits: 'userSpaceOnUse', width: 7, height: 7, patternTransform: 'rotate(45)' }, defs);
+      el('rect', { width: 7, height: 7, fill: c.color }, pat);
+      el('rect', { width: 2.7, height: 7, fill: c.stripe }, pat);
+      fills.set(c.id, `url(#${pid})`);
+    }
+    return fills.get(c.id);
+  };
+  const center = [-rot[0], -rot[1]];
+  const g = el('g', {}, node);
+  for (const f of set.feats) {
+    if (d3.geoDistance(center, f.cc) > vis + f.cr) continue;
+    const d = path(fine ? visiblePolys(f, center, vis) : f);
+    if (!d) continue;
+    const fill = fillOf(assign.get(f.id));
+    el('path', { id: 'country-' + f.id, d, fill, stroke: fill, 'stroke-width': .5 }, g);
+  }
+  for (const [c, items] of paintedRegions(center, vis)) {
+    const fill = fillOf(c);
+    for (const f of items) { const d = path(f); if (d) el('path', { d, fill, stroke: fill, 'stroke-width': .4 }, g); }
+  }
+  el('path', { d: path(fine ? visibleLines(set.lines, center, vis) : set.lines) || '', fill: 'none', stroke: '#000', 'stroke-opacity': .3, 'stroke-width': .55, 'stroke-linejoin': 'round' }, node);
+  const admin = cfg.admin ? DATA.adminHi || DATA.adminLo : null;
+  if (admin) el('path', { d: path(fine ? visibleLines(admin, center, vis) : admin) || '', fill: 'none', stroke: '#000', 'stroke-opacity': .2, 'stroke-width': .4, 'stroke-linejoin': 'round' }, node);
+  if (cfg.gdr) el('path', { d: path(GDR) || '', fill: 'none', stroke: '#000', 'stroke-opacity': .7, 'stroke-width': 1.1, 'stroke-dasharray': '4 3' }, node);
+  el('path', { d: path(DASHES) || '', fill: 'none', stroke: '#000', 'stroke-opacity': .72, 'stroke-width': 1.3 }, node);
+  el('path', { d: path(SPHERE), fill: 'none', stroke: '#000', 'stroke-opacity': .28, 'stroke-width': .8 }, node);
+  return node;
+}
+const serialize = node => new XMLSerializer().serializeToString(node);
+const toBlob = canvas => new Promise((ok, no) => canvas.toBlob(b => b ? ok(b) : no(new Error('PNG 生成失败。')), 'image/png'));
+async function globePng() {
+  const set = await hiReady, W = 2400, ratio = W / size.w;
+  if (glReady && glHi) await glHi;
+  if (glReady) {
+    if (glDirty) drawBase();
+    const shot = glView.snapshot({ w: size.w, h: size.h, ratio, rotate: rot, scale: globeScale(size.w, size.h, zoom), paper: cfg.paper, ocean: cfg.ocean, graticule: cfg.graticule, admin: cfg.admin, gdr: cfg.gdr });
+    drawBase();
+    return toBlob(shot);
+  }
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = Math.round(size.h * ratio);
+  drawGlobe(canvas.getContext('2d'), {
+    w: size.w, h: size.h, ratio, rotate: rot, set, seal: true, z: zoom,
+    admin: cfg.admin ? DATA.adminHi || DATA.adminLo : null
+  });
+  return toBlob(canvas);
+}
+async function flatPng() {
+  const W = 2400, H = Math.round(W * FLAT.h / FLAT.w), k = flatView.k * W / FLAT.w;
+  const node = flatExportNode();
+  const texts = [...node.querySelectorAll('text')].map(t => ({
+    s: t.textContent, x: +t.getAttribute('x'), y: +t.getAttribute('y'), fill: t.getAttribute('fill'),
+    weight: t.getAttribute('font-weight'), size: +t.getAttribute('font-size'), halo: t.getAttribute('stroke'), haloWidth: +t.getAttribute('stroke-width')
+  }));
+  node.querySelectorAll('text').forEach(t => t.remove());
+  node.setAttribute('width', W);
+  node.setAttribute('height', H);
+  const url = URL.createObjectURL(new Blob([serialize(node)], { type: 'image/svg+xml' }));
+  try {
+    const img = new Image();
+    await new Promise((ok, no) => { img.onload = ok; img.onerror = () => no(new Error('地图图像生成失败。')); img.src = url; });
+    try { await document.fonts.load('500 20px Inter'); } catch (e) {}
+    const canvas = document.createElement('canvas');
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, W, H);
+    ctx.textAlign = 'center';
+    for (const t of texts) {
+      ctx.font = `${t.weight} ${t.size * k}px ${FONT}`;
+      const tx = (t.x - flatView.x) * k, ty = (t.y - flatView.y) * k;
+      if (t.halo) { ctx.strokeStyle = t.halo; ctx.lineWidth = t.haloWidth * k; ctx.lineJoin = 'round'; ctx.strokeText(t.s, tx, ty); }
+      ctx.fillStyle = t.fill;
+      ctx.fillText(t.s, tx, ty);
+    }
+    return await toBlob(canvas);
+  } finally { URL.revokeObjectURL(url); }
+}
+const currentPng = () => view === 'flat' ? flatPng() : globePng();
+async function currentSvg() {
+  if (view === 'globe') await hiReady;
+  const node = view === 'flat' ? flatExportNode() : globeSvgNode();
+  if (view === 'flat') { node.setAttribute('width', 2000); node.setAttribute('height', 1280); }
+  return '<?xml version="1.0" encoding="UTF-8"?>\n' + serialize(node);
+}
+const fileBase = () => view === 'flat' ? `map-${flatId}` : 'world-globe';
+let downloads = null;
+async function save(filename, make) {
+  if (!downloads) return;
+  say('正在生成文件…');
+  try {
+    await downloads.save({ filename, data: await make() });
+    say(`已保存 ${filename}。`);
+  } catch (e) {
+    if (e && e.code === 'declined') say('已取消保存。');
+    else if (e && e.code === 'rate_limited') say('已有一个保存提示在等待确认，先处理它再试。');
+    else say((e && e.message) || '这次没有保存成功，可以改用“复制 SVG 代码”。');
+  }
+}
+$('save-png').addEventListener('click', () => save(fileBase() + '.png', currentPng));
+$('save-svg').addEventListener('click', () => save(fileBase() + '.svg', currentSvg));
+$('copy-svg').addEventListener('click', () => {
+  // the clipboard write has to start inside the click, so hand it a promise of the text
+  const text = currentSvg();
+  const write = typeof ClipboardItem === 'function' && navigator.clipboard.write
+    ? navigator.clipboard.write([new ClipboardItem({ 'text/plain': text.then(s => new Blob([s], { type: 'text/plain' })) })])
+    : text.then(s => navigator.clipboard.writeText(s));
+  write.then(() => say('SVG 代码已复制。'), () => say('浏览器没有允许复制，可以改用“保存 SVG”。'));
+});
+(async () => {
+  downloads = await platform.files();
+  $('save-png').hidden = $('save-svg').hidden = !downloads;
+})();
+
+/* ---- config JSON ---- */
+$('cfg-box').addEventListener('toggle', syncCfgText);
+$('cfg-copy').addEventListener('click', () => {
+  navigator.clipboard.writeText($('cfg-text').value).then(() => say('配置已复制。'), () => { $('cfg-text').select(); say('浏览器没有允许复制，配置已选中，可以手动复制。'); });
+});
+$('cfg-apply').addEventListener('click', () => {
+  try {
+    cfg = normalize(JSON.parse($('cfg-text').value));
+    $('cfg-err').hidden = true;
+    if (active !== BASE && !activeCat()) active = cfg.cats[0]?.id || BASE;
+    if (cfg.admin) ensureAdmin();
+    renderAll();
+    commit();
+    say('配置已应用。');
+  } catch (e) {
+    $('cfg-err').textContent = e instanceof SyntaxError ? 'JSON 格式有误，检查一下括号和引号。' : e.message;
+    $('cfg-err').hidden = false;
+  }
+});
+
+/* ---- desktop menu ---- */
+// a project opened from disk, or a new one, replaces the colours and starts a fresh undo history
+platform.on('project', raw => {
+  cfg = normalize(raw || { cats: [] });
+  active = cfg.cats[0] ? cfg.cats[0].id : BASE;
+  undoStack.length = 0;
+  lastSaved = JSON.stringify(cfg);
+  $('undo').disabled = true;
+  platform.config.baseline(cfg);
+  if (view === 'flat') closeCountry();
+  if (cfg.admin) ensureAdmin();
+  renderAll();
+});
+platform.on('undo', () => {
+  const t = document.activeElement;
+  if (t && (t.tagName === 'TEXTAREA' || (t.tagName === 'INPUT' && /text|search/.test(t.type)))) document.execCommand('undo');
+  else $('undo').click();
+});
+platform.on('png', () => save(fileBase() + '.png', currentPng));
+platform.on('svg', () => save(fileBase() + '.svg', currentSvg));
+
+resize();
+startGL();
+renderAll();
+showHint();
+syncZoom();
+if (cfg.admin) ensureAdmin();
+if (platform.pref('fps')) setMeter(true);
+</script>

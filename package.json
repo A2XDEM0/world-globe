@@ -1,0 +1,74 @@
+{
+  "name": "world-globe",
+  "version": "1.0.0",
+  "description": "可以按国家和行政区上色的世界地球",
+  "private": true,
+  "type": "module",
+  "main": "desktop/main.mjs",
+  "scripts": {
+    "fetch": "bash scripts/fetch-data.sh",
+    "prepare-data": "bash scripts/prepare.sh",
+    "build": "bash scripts/build.sh",
+    "assemble": "node scripts/assemble.mjs",
+    "serve": "node scripts/serve.mjs",
+    "desktop": "node scripts/assemble.mjs && electron .",
+    "dist:mac": "node scripts/assemble.mjs && electron-builder --mac --arm64"
+  },
+  "build": {
+    "appId": "local.world-globe",
+    "productName": "世界色彩地球",
+    "artifactName": "world-globe-${version}-${arch}.${ext}",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "package.json",
+      "desktop/main.mjs",
+      "desktop/preload.cjs",
+      "desktop/app/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "dist/data",
+        "to": "data"
+      }
+    ],
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
+      "category": "public.app-category.education",
+      "identity": null,
+      "darkModeSupport": true
+    },
+    "dmg": {
+      "writeUpdateInfo": false
+    }
+  },
+  "devDependencies": {
+    "@fontsource/ibm-plex-mono": "^5.2.5",
+    "@fontsource/ibm-plex-sans": "^5.2.5",
+    "@fontsource/inter": "^5.2.5",
+    "d3": "^7.9.0",
+    "d3-geo": "3.1.1",
+    "earcut": "^2.2.4",
+    "electron": "^40.0.0",
+    "electron-builder": "^26.0.12",
+    "mapshaper": "0.6.102",
+    "polygon-clipping": "^0.15.7",
+    "puppeteer-core": "23.11.1",
+    "topojson": "^3.0.2",
+    "topojson-client": "3.1.0"
+  }
+}
