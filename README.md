@@ -1,5 +1,7 @@
 # 世界色彩地球 · World Color Globe
 
+**简体中文** · [繁體中文](README.zh-Hant.md) · [English](README.en.md) · [Français](README.fr.md) · [Русский](README.ru.md) · [Español](README.es.md)
+
 一个可以拖动旋转、缩放的世界地球，能按国家、一级行政区（省、州）或二级行政区（市、县）分别上色，点国家可以打开它的平面地图。有网页版和 macOS 桌面版，两者共用同一份前端代码。
 
 An interactive globe for colouring countries, states and counties, with per-country flat maps, bloc overlays and a Chinese / English interface. Web build plus an Electron app for macOS.
