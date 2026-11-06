@@ -43,9 +43,18 @@ try {
     saveButtons: !$('save-png').hidden && !$('save-svg').hidden
   }));
   r.titleOpened = await main('wgTest.title()');
+  r.strip = await p.evaluate(() => ({ shown: !$('titlebar').hidden, text: $('titlebar').textContent, inset: document.documentElement.classList.contains('titlebar-inset'), top: getComputedStyle(document.querySelector('.app')).paddingTop }));
   await p.evaluate(() => togglePaint('FRA'));
   await sleep(200);
   r.titleDirty = await main('wgTest.title()');
+  r.stripDirty = await p.evaluate(() => $('titlebar').textContent);
+  // theme: dark pins the page and the window; system hands it back
+  await p.evaluate(() => { $('theme-dark').click(); });
+  await sleep(300);
+  r.themeDark = { page: await p.evaluate(() => [document.documentElement.getAttribute('data-theme'), getComputedStyle(document.body).backgroundColor]), window: await main('wgTest.theme()') };
+  await p.evaluate(() => { $('theme-system').click(); });
+  await sleep(300);
+  r.themeSystem = { page: await p.evaluate(() => [document.documentElement.getAttribute('data-theme'), getComputedStyle(document.body).backgroundColor]), window: await main('wgTest.theme()'), saved: await main('wgTest.settings.prefs.theme') };
   await main("wgTest.click('保存')");
   await sleep(300);
   r.titleSaved = await main('wgTest.title()');
@@ -78,6 +87,14 @@ try {
   r.closeCancelled = await main('wgTest.alive()');
   r.asked = await main('wgTest.state.asked');
   r.csp = await p.evaluate(() => cspViolations);
+  // language: the page's choice reaches the menus and the window title
+  await p.evaluate(() => { $('lang-en').click(); });
+  await sleep(400);
+  r.menuEn = await main('wgTest.menu()');
+  r.titleEn = await main('wgTest.title()');
+  await p.evaluate(() => { $('lang-zh').click(); });
+  await sleep(300);
+  r.menuZh = await main('wgTest.menu()');
   // the probes below are meant to trip the CSP, so errors after this point are expected
   const realErrs = errs.length;
   r.inlineScript = await p.evaluate(async () => { const s = document.createElement('script'); s.textContent = 'window.injected = 1'; document.body.append(s); await new Promise(k => setTimeout(k, 100)); return { ran: !!window.injected, violations: cspViolations.slice() }; });

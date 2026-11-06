@@ -16,15 +16,41 @@
 [hidden] { display: none !important }
 body { background: var(--bg); color: var(--fg); font: 400 14px/1.5 var(--ui) }
 .app { display: grid; gap: 16px 24px; grid-template-columns: minmax(0, 1fr) 320px; grid-template-areas: "top top" "stage panel"; max-width: 1560px; margin-inline: auto; padding-block: 20px 32px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)) }
-.top { grid-area: top; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px }
+.top { grid-area: top; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "brand bar tools"; align-items: center; gap: 8px 24px }
+.top > .brand { grid-area: brand; white-space: nowrap }
+.top > .toolbar { grid-area: bar }
+.top > .row { grid-area: tools; justify-content: flex-end }
+/* not enough room for one line: the toolbar moves under the title */
+@media (max-width: 1240px) { .top { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "brand tools" "bar bar" } }
 h1 { margin: 0; font-size: 20px; font-weight: 600; text-wrap: balance }
+.brand { display: flex; align-items: center; gap: 10px }
+.brand .mark { width: 28px; height: 28px; flex: none; color: var(--fg) }
 .stage { grid-area: stage; align-self: start; display: grid; gap: 12px; min-width: 0; position: sticky; top: 16px }
 .panel { grid-area: panel; display: grid; gap: 20px; align-content: start; min-width: 0 }
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-height: 36px }
 .toolbar .seg { width: 180px; flex: none }
 .seg.three { grid-template-columns: repeat(3, 1fr) }
 .toolbar .seg.three { width: 192px }
-.toolbar .grow { flex: 1 1 180px; min-width: 0 }
+.toolbar .grow { flex: 1 1 180px; min-width: 0; position: relative }
+.top .seg.lang { width: 112px }
+.find-pop { position: absolute; z-index: 5; inset: calc(100% + 4px) 0 auto; margin: 0; padding: 4px; list-style: none; background: var(--surface); border: 1px solid var(--line); border-radius: 4px; box-shadow: 0 6px 18px rgba(0, 0, 0, .12) }
+.find-pop li { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 3px; cursor: pointer }
+.find-pop li[aria-selected="true"], .find-pop li:hover { background: var(--bg) }
+.find-pop .sub { margin-left: auto; color: var(--muted); font-size: 12px }
+.flag { width: 20px; height: 15px; flex: none; border-radius: 2px; box-shadow: 0 0 0 1px rgba(0, 0, 0, .12); object-fit: cover; vertical-align: -2px }
+.blocs { display: grid; gap: 10px }
+.bloc { display: grid; gap: 6px }
+.bloc .check { justify-content: flex-start }
+.bloc .years { color: var(--muted); font-size: 12px }
+.bloc .n { margin-left: auto; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums }
+.bloc .sw { width: 18px; height: 18px }
+.bloc details > div { margin: 6px 0 0 26px; gap: 8px }
+.bloc summary { margin-left: 26px; font-size: 12px; font-weight: 500; color: var(--muted) }
+.member-flags { display: flex; flex-wrap: wrap; gap: 4px }
+.member-flags button { display: inline-flex; align-items: center; gap: 4px; padding: 2px; border: 1px solid transparent; border-radius: 3px; background: none; color: var(--fg); font: inherit; font-size: 12px; cursor: pointer }
+.member-flags button:hover { border-color: var(--line) }
+.member-flags button.status { opacity: .6 }
+.member-flags .chip-text { padding: 0 4px; border: 1px dashed var(--line); border-radius: 3px }
 .flat-name { flex: 1 1 120px; min-width: 0; margin: 0; font-size: 16px; font-weight: 600 }
 .sheet { position: relative; margin: 0; width: 100%; height: clamp(340px, calc(100vh - 260px), 62vw); border: 1px solid var(--line); overflow: hidden }
 .sheet canvas, #flat { position: absolute; inset: 0; width: 100%; height: 100%; display: block }
@@ -39,6 +65,10 @@ h1 { margin: 0; font-size: 20px; font-weight: 600; text-wrap: balance }
 .zoombar button { width: 34px; height: 34px; padding: 0; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--fg); font: inherit; font-size: 12px; cursor: pointer }
 .zoombar button:disabled { opacity: .45; cursor: default }
 #flat .nohit { pointer-events: none }
+/* the desktop app on macOS hides the system title bar; this strip carries the window controls, the file name and the drag area */
+.titlebar { position: fixed; inset: 0 0 auto; height: 40px; z-index: 10; display: flex; align-items: center; justify-content: center; padding-inline: 88px; background: var(--bg); color: var(--muted); font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; -webkit-app-region: drag; user-select: none }
+:root.titlebar-inset .app { padding-top: 52px }
+:root.titlebar-inset .stage { top: 52px }
 .fps { position: absolute; left: 8px; bottom: 8px; z-index: 2; margin: 0; padding: 2px 8px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--muted); font: 12px/1.5 var(--mono); font-variant-numeric: tabular-nums; pointer-events: none; opacity: .92 }
 .brushes { display: flex; flex-wrap: wrap; gap: 8px }
 .chip { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 4px 10px 4px 6px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--fg); font: inherit; cursor: pointer }
@@ -86,119 +116,137 @@ details > div { display: grid; gap: 8px; margin-top: 12px }
 }
 </style>
 
+<div class="titlebar" id="titlebar" hidden></div>
 <main class="app">
   <header class="top">
-    <h1>世界色彩地球</h1>
+    <h1 class="brand"><svg class="mark" viewBox="0 0 256 256" aria-hidden="true"><path fill="var(--accent)" d="M100.28 38.18A94 94 0 0 1 168.91 43.37L162.7 49.58A51 107 0 0 1 167.55 60.45L178.98 49.02A94 94 0 0 1 194.61 61.67L174.09 82.19A51 107 0 0 1 176.58 95.42L201.98 70.02A94 94 0 0 1 212.81 87.47L178.9 121.38A51 107 0 0 1 178.81 137.19L217.31 98.69A94 94 0 0 1 221.84 122.45L195.02 149.26A103 28 0 0 1 78.36 152.53A51 107 0 0 1 100.28 38.18Z"/><path fill="currentColor" d="M20 128A108 108 0 0 1 236 128A108 108 0 0 1 20 128ZM36.21 134.15A96 21 0 0 0 75.7 145.61A53 109 0 0 1 95.47 41.94A92 92 0 0 0 36.21 134.15ZM38.25 148.24A92 92 0 0 0 95.47 214.06A53 109 0 0 1 77.19 159.04A110 35 0 0 1 38.25 148.24ZM89.81 147.27A96 21 0 0 0 166.19 147.27A39 95 0 0 0 138.66 36.62A92 92 0 0 0 117.34 36.62A39 95 0 0 0 89.81 147.27ZM91.43 161.01A39 95 0 0 0 117.34 219.38A92 92 0 0 0 138.66 219.38A39 95 0 0 0 164.57 161.01A110 35 0 0 1 91.43 161.01ZM160.53 41.94A53 109 0 0 1 180.3 145.61A96 21 0 0 0 219.79 134.15A92 92 0 0 0 160.53 41.94ZM160.53 214.06A92 92 0 0 0 217.75 148.24A110 35 0 0 1 178.81 159.04A53 109 0 0 1 160.53 214.06Z"/></svg><span data-i18n="title">世界色彩地球</span></h1>
+    <div class="toolbar" id="globe-bar">
+      <div class="seg" role="radiogroup" data-i18n-aria="modeAria" aria-label="点击国家时">
+        <label><input type="radio" name="mode" id="mode-paint" value="paint" checked><span data-i18n="paint">涂色</span></label>
+        <label><input type="radio" name="mode" id="mode-view" value="view"><span data-i18n="view">查看</span></label>
+      </div>
+      <div class="seg three" role="radiogroup" data-i18n-aria="unitAria" aria-label="涂色单位">
+        <label><input type="radio" name="unit" id="unit-0" value="0" checked><span data-i18n="unit0">国家</span></label>
+        <label><input type="radio" name="unit" id="unit-1" value="1"><span data-i18n="unit1">一级</span></label>
+        <label><input type="radio" name="unit" id="unit-2" value="2"><span data-i18n="unit2">二级</span></label>
+      </div>
+      <div class="grow">
+        <input id="find" type="search" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="find-pop" data-i18n-ph="find" data-i18n-aria="find" placeholder="搜索国家并转到它" aria-label="搜索国家并转到它" autocomplete="off" spellcheck="false">
+        <ul class="find-pop" id="find-pop" role="listbox" hidden></ul>
+      </div>
+    </div>
+    <div class="toolbar" id="flat-bar" hidden>
+      <button class="btn primary" id="back" data-i18n="back" type="button">返回地球</button>
+      <p class="flat-name" id="flat-name"></p>
+      <div class="seg three" role="radiogroup" data-i18n-aria="unitAria" aria-label="涂色单位">
+        <label><input type="radio" name="lvl" id="lvl-0" value="0" checked><span data-i18n="unit0">国家</span></label>
+        <label><input type="radio" name="lvl" id="lvl-1" value="1"><span data-i18n="unit1">一级</span></label>
+        <label><input type="radio" name="lvl" id="lvl-2" value="2"><span data-i18n="unit2">二级</span></label>
+      </div>
+      <button class="btn" id="flat-paint" type="button"></button>
+    </div>
     <div class="row">
-      <button class="btn" id="undo" type="button" disabled>撤销</button>
-      <button class="btn" id="reset" type="button">恢复示例</button>
+      <div class="seg lang" role="radiogroup" data-i18n-aria="langAria" aria-label="界面语言">
+        <label><input type="radio" name="lang" id="lang-zh" value="zh" checked><span>中文</span></label>
+        <label><input type="radio" name="lang" id="lang-en" value="en"><span>EN</span></label>
+      </div>
+      <button class="btn" id="undo" data-i18n="undo" type="button" disabled>撤销</button>
+      <button class="btn" id="reset" data-i18n="reset" type="button">恢复示例</button>
     </div>
   </header>
 
   <div class="stage">
-    <div class="toolbar" id="globe-bar">
-      <div class="seg" role="radiogroup" aria-label="点击国家时">
-        <label><input type="radio" name="mode" id="mode-paint" value="paint" checked><span>涂色</span></label>
-        <label><input type="radio" name="mode" id="mode-view" value="view"><span>查看</span></label>
-      </div>
-      <div class="seg three" role="radiogroup" aria-label="涂色单位">
-        <label><input type="radio" name="unit" id="unit-0" value="0" checked><span>国家</span></label>
-        <label><input type="radio" name="unit" id="unit-1" value="1"><span>一级</span></label>
-        <label><input type="radio" name="unit" id="unit-2" value="2"><span>二级</span></label>
-      </div>
-      <div class="grow">
-        <input id="find" type="search" list="find-list" placeholder="搜索国家并转到它" aria-label="搜索国家并转到它" autocomplete="off">
-        <datalist id="find-list"></datalist>
-      </div>
-    </div>
-    <div class="toolbar" id="flat-bar" hidden>
-      <button class="btn primary" id="back" type="button">返回地球</button>
-      <p class="flat-name" id="flat-name"></p>
-      <div class="seg three" role="radiogroup" aria-label="涂色单位">
-        <label><input type="radio" name="lvl" id="lvl-0" value="0" checked><span>国家</span></label>
-        <label><input type="radio" name="lvl" id="lvl-1" value="1"><span>一级</span></label>
-        <label><input type="radio" name="lvl" id="lvl-2" value="2"><span>二级</span></label>
-      </div>
-      <button class="btn" id="flat-paint" type="button"></button>
-    </div>
     <figure class="sheet" id="sheet">
       <canvas id="base" aria-hidden="true"></canvas>
       <canvas id="gl" aria-hidden="true" hidden></canvas>
-      <canvas id="hl" tabindex="0" role="application" aria-label="可以旋转的地球。方向键旋转，回车键对正中央的国家执行当前操作。"></canvas>
+      <canvas id="hl" tabindex="0" role="application" data-i18n-aria="globeAria" aria-label="可以旋转的地球。方向键旋转，回车键对正中央的国家执行当前操作。"></canvas>
       <svg id="flat" xmlns="http://www.w3.org/2000/svg" role="group" hidden></svg>
-      <div class="zoombar" role="group" aria-label="缩放">
-        <button id="zoom-in" type="button" aria-label="放大">＋</button>
-        <button id="zoom-out" type="button" aria-label="缩小">－</button>
-        <button id="zoom-home" type="button" aria-label="恢复原始大小">复位</button>
+      <div class="zoombar" role="group" data-i18n-aria="zoomAria" aria-label="缩放">
+        <button id="zoom-in" type="button" data-i18n-aria="zoomIn" aria-label="放大">＋</button>
+        <button id="zoom-out" type="button" data-i18n-aria="zoomOut" aria-label="缩小">－</button>
+        <button id="zoom-home" type="button" data-i18n="zoomHome" data-i18n-aria="zoomHomeAria" aria-label="恢复原始大小">复位</button>
       </div>
       <p class="fps" id="fps" aria-live="off" hidden></p>
     </figure>
-    <div class="brushes" id="brushes" role="group" aria-label="选择画笔颜色"></div>
+    <div class="brushes" id="brushes" role="group" data-i18n-aria="brushesAria" aria-label="选择画笔颜色"></div>
     <p class="meta"><span id="readout"></span><span id="load-note" role="status"></span></p>
-    <p class="note">本图按自定义边界绘制：台湾、香港、澳门、藏南并入中国，含南海十段线；科索沃并入塞尔维亚；格陵兰并入丹麦；卢甘斯克、顿涅茨克、克里米亚（含塞瓦斯托波尔）并入俄罗斯。东西德分界线和西柏林边界来自 OpenHistoricalMap（1951–1990，CC0），二级行政区来自 geoBoundaries CGAZ（CC BY 4.0）。这些划分存在争议，不代表国际公认边界。底图来自 Natural Earth 1:10m（公有领域），第十段线的位置参考公开地图资料，只是近似。</p>
+    <p class="note" data-i18n="note">本图按自定义边界绘制：台湾（含钓鱼岛及其附属岛屿）、香港、澳门、藏南并入中国，含南海十段线；科索沃并入塞尔维亚；格陵兰并入丹麦；卢甘斯克、顿涅茨克、克里米亚（含塞瓦斯托波尔）并入俄罗斯。东西德分界线和西柏林边界来自 OpenHistoricalMap（1951–1990，CC0），二级行政区来自 geoBoundaries CGAZ（CC BY 4.0）。这些划分存在争议，不代表国际公认边界。底图来自 Natural Earth 1:10m（公有领域），第十段线的位置参考公开地图资料，只是近似。</p>
   </div>
 
   <aside class="panel">
     <section aria-labelledby="ed-title">
-      <h2 id="ed-title">当前颜色</h2>
-      <div class="field" id="f-name"><label for="cat-name">名称</label><input id="cat-name" type="text" maxlength="24"></div>
-      <div class="field" id="f-style"><span class="lab">样式</span>
-        <div class="seg" role="radiogroup" aria-label="样式">
-          <label><input type="radio" name="style" id="style-solid" value="solid"><span>纯色</span></label>
-          <label><input type="radio" name="style" id="style-stripes" value="stripes"><span>斜线</span></label>
+      <h2 id="ed-title" data-i18n="edTitle">当前颜色</h2>
+      <div class="field" id="f-name"><label for="cat-name" data-i18n="name">名称</label><input id="cat-name" type="text" maxlength="24"></div>
+      <div class="field" id="f-style"><span class="lab" data-i18n="style">样式</span>
+        <div class="seg" role="radiogroup" data-i18n-aria="style" aria-label="样式">
+          <label><input type="radio" name="style" id="style-solid" value="solid"><span data-i18n="solid">纯色</span></label>
+          <label><input type="radio" name="style" id="style-stripes" value="stripes"><span data-i18n="stripes">斜线</span></label>
         </div>
       </div>
       <div class="field"><label for="cat-hex" id="color-label">颜色</label>
-        <div class="color"><input id="cat-color" type="color" aria-label="选取颜色"><input id="cat-hex" class="mono" type="text" spellcheck="false" maxlength="7"></div>
+        <div class="color"><input id="cat-color" type="color" data-i18n-aria="pickColour" aria-label="选取颜色"><input id="cat-hex" class="mono" type="text" spellcheck="false" maxlength="7"></div>
       </div>
-      <div class="field" id="f-stripe"><label for="cat-stripe-hex">斜线颜色</label>
-        <div class="color"><input id="cat-stripe" type="color" aria-label="选取斜线颜色"><input id="cat-stripe-hex" class="mono" type="text" spellcheck="false" maxlength="7"></div>
+      <div class="field" id="f-stripe"><label for="cat-stripe-hex" data-i18n="stripeColour">斜线颜色</label>
+        <div class="color"><input id="cat-stripe" type="color" data-i18n-aria="pickStripe" aria-label="选取斜线颜色"><input id="cat-stripe-hex" class="mono" type="text" spellcheck="false" maxlength="7"></div>
       </div>
-      <div class="field" id="f-ids"><label for="cat-ids">包含的国家（中文名、英文名或三位代码，用逗号或顿号分开）</label>
+      <div class="field" id="f-ids"><label for="cat-ids" data-i18n="idsLabel">包含的国家（中文名、英文名或三位代码，用逗号或顿号分开）</label>
         <textarea id="cat-ids" rows="3" spellcheck="false"></textarea>
         <p class="err" id="ids-err" hidden></p>
-        <label for="cat-regs">单独涂色的行政区（代码，用逗号分开）</label>
+        <label for="cat-regs" data-i18n="regsLabel">单独涂色的行政区（代码，用逗号分开）</label>
         <textarea id="cat-regs" class="mono" rows="2" spellcheck="false"></textarea>
         <p class="err" id="regs-err" hidden></p>
         <p class="note" id="cat-regions"></p>
       </div>
-      <button class="btn quiet" id="cat-delete" type="button">删除这个颜色</button>
+      <button class="btn quiet" id="cat-delete" data-i18n="deleteCat" type="button">删除这个颜色</button>
+    </section>
+
+    <section aria-labelledby="blocs-title">
+      <h2 id="blocs-title" data-i18n="blocsTitle">阵营</h2>
+      <p class="note" data-i18n="blocsNote">勾选的阵营在地图上叠一层斜纹；同属几个阵营的国家，各阵营的颜色轮流出现。成员截至 2026 年 11 月。</p>
+      <div class="blocs" id="blocs"></div>
     </section>
 
     <section aria-labelledby="base-title">
-      <h2 id="base-title">底图</h2>
-      <label class="check"><input id="t-admin" type="checkbox">显示行政区线</label>
-      <label class="check"><input id="t-adm2" type="checkbox">平面图显示二级行政区线（市、县）</label>
-      <label class="check"><input id="t-labels" type="checkbox">平面图显示行政区名称</label>
-      <div class="field"><label for="label-size">行政区名称字号</label>
+      <h2 id="base-title" data-i18n="baseTitle">底图</h2>
+      <label class="check"><input id="t-admin" type="checkbox"><span data-i18n="tAdmin">显示行政区线</span></label>
+      <label class="check"><input id="t-adm2" type="checkbox"><span data-i18n="tAdm2">平面图显示二级行政区线（市、县）</span></label>
+      <label class="check"><input id="t-labels" type="checkbox"><span data-i18n="tLabels">平面图显示行政区名称</span></label>
+      <div class="field"><label for="label-size" data-i18n="labelSize">行政区名称字号</label>
         <div class="range"><input id="label-size" type="range" min="7" max="20" step="0.5"><output id="label-size-out" for="label-size"></output></div>
       </div>
-      <label class="check"><input id="t-grat" type="checkbox">地球显示经纬网</label>
-      <label class="check"><input id="t-gdr" type="checkbox">显示东西德分界线和西柏林边界（1951–1990）</label>
-      <div class="field"><label for="ocean-hex">海洋颜色</label>
-        <div class="color"><input id="ocean" type="color" aria-label="选取海洋颜色"><input id="ocean-hex" class="mono" type="text" spellcheck="false" maxlength="7"></div>
+      <label class="check"><input id="t-grat" type="checkbox"><span data-i18n="tGrat">地球显示经纬网</span></label>
+      <label class="check"><input id="t-gdr" type="checkbox"><span data-i18n="tGdr">显示东西德分界线和西柏林边界（1951–1990）</span></label>
+      <div class="field"><label for="ocean-hex" data-i18n="ocean">海洋颜色</label>
+        <div class="color"><input id="ocean" type="color" data-i18n-aria="pickOcean" aria-label="选取海洋颜色"><input id="ocean-hex" class="mono" type="text" spellcheck="false" maxlength="7"></div>
       </div>
-      <div class="field"><label for="paper-hex">背景颜色</label>
-        <div class="color"><input id="paper" type="color" aria-label="选取背景颜色"><input id="paper-hex" class="mono" type="text" spellcheck="false" maxlength="7"></div>
+      <div class="field"><label for="paper-hex" data-i18n="paper">背景颜色</label>
+        <div class="color"><input id="paper" type="color" data-i18n-aria="pickPaper" aria-label="选取背景颜色"><input id="paper-hex" class="mono" type="text" spellcheck="false" maxlength="7"></div>
       </div>
-      <label class="check"><input id="t-fps" type="checkbox">显示地球的帧率和每帧耗时</label>
+      <label class="check"><input id="t-fps" type="checkbox"><span data-i18n="tFps">显示地球的帧率和每帧耗时</span></label>
+      <div class="field"><span class="lab" data-i18n="theme">界面主题（只改界面，不改地图颜色）</span>
+        <div class="seg three" role="radiogroup" data-i18n-aria="theme" aria-label="界面主题">
+          <label><input type="radio" name="theme" id="theme-system" value="system"><span data-i18n="themeSystem">跟随系统</span></label>
+          <label><input type="radio" name="theme" id="theme-light" value="light"><span data-i18n="themeLight">浅色</span></label>
+          <label><input type="radio" name="theme" id="theme-dark" value="dark"><span data-i18n="themeDark">深色</span></label>
+        </div>
+      </div>
     </section>
 
     <section aria-labelledby="out-title">
-      <h2 id="out-title">导出当前视图</h2>
+      <h2 id="out-title" data-i18n="outTitle">导出当前视图</h2>
       <div class="row">
-        <button class="btn primary" id="save-png" type="button" hidden>保存 PNG</button>
-        <button class="btn" id="save-svg" type="button" hidden>保存 SVG</button>
-        <button class="btn" id="copy-svg" type="button">复制 SVG 代码</button>
+        <button class="btn primary" id="save-png" data-i18n="savePng" type="button" hidden>保存 PNG</button>
+        <button class="btn" id="save-svg" data-i18n="saveSvg" type="button" hidden>保存 SVG</button>
+        <button class="btn" id="copy-svg" data-i18n="copySvg" type="button">复制 SVG 代码</button>
       </div>
       <p class="note" id="msg" role="status"></p>
       <details id="cfg-box">
-        <summary>配置 JSON（备份或导入）</summary>
+        <summary data-i18n="cfgSummary">配置 JSON（备份或导入）</summary>
         <div>
-          <label class="note" for="cfg-text">颜色和分组保存在这个浏览器里。换设备时，复制这段配置，粘贴到新页面后点“应用”。</label>
+          <label class="note" for="cfg-text" data-i18n="cfgNote">颜色和分组保存在这个浏览器里。换设备时，复制这段配置，粘贴到新页面后点“应用”。</label>
           <textarea id="cfg-text" class="mono" rows="8" spellcheck="false"></textarea>
           <p class="err" id="cfg-err" hidden></p>
-          <div class="row"><button class="btn" id="cfg-copy" type="button">复制</button><button class="btn" id="cfg-apply" type="button">应用</button></div>
+          <div class="row"><button class="btn" id="cfg-copy" data-i18n="copy" type="button">复制</button><button class="btn" id="cfg-apply" data-i18n="apply" type="button">应用</button></div>
         </div>
       </details>
     </section>
@@ -210,6 +258,9 @@ details > div { display: grid; gap: 8px; margin-top: 12px }
 <script src="vendor/earcut.min.js"></script>
 <script src="globe-gl.js"></script>
 <script src="platform.js"></script>
+<script src="i18n.js"></script>
+<script src="blocs.js"></script>
+<script src="capitals.js"></script>
 <script type="application/json" id="geo">__GEO__</script>
 <script>
 const META = JSON.parse(document.getElementById('geo').textContent);
@@ -224,7 +275,7 @@ const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const FLAT = { w: 1000, h: 640 };
 const GLOBE_MAX = 10;
 const CORE_POINT = { DNK: [9.5, 56] };
-const INSET_LABELS = { DNK: [[[-42, 72], '格陵兰']] };
+const INSET_LABELS = { DNK: [[[-42, 72], 'greenland']] };
 const FLAT_MAX = 12;
 const HOME = { k: 1, x: 0, y: 0 };
 const DASHES = { type: 'MultiLineString', coordinates: META.dashes };
@@ -265,15 +316,17 @@ const el = (name, attrs = {}, parent) => {
   return node;
 };
 const clone = o => JSON.parse(JSON.stringify(o));
-const nameOf = id => NAMES[id] ? NAMES[id].z : id;
+const nameOf = id => NAMES[id] ? (lang === 'en' ? NAMES[id].n : NAMES[id].z) : id;
+// a region's name in the interface language (second-level regions have only their own name)
+const regionName = p => lang === 'en' ? p.n || p.z : p.z || p.n;
 
 function normalize(o) {
-  if (!o || !Array.isArray(o.cats)) throw new Error('配置里缺少 cats 列表。');
+  if (!o || !Array.isArray(o.cats)) throw new Error(t('cfgNoCats'));
   const hex = (v, d) => HEX.test(v) ? v.toLowerCase() : d;
   const seen = new Set(), seenR = new Set();
   const cats = o.cats.map((c, i) => ({
     id: String(c.id || 'c' + (i + 1)),
-    name: String(c.name || '颜色 ' + (i + 1)).slice(0, 24),
+    name: String(c.name || t('newColour', { n: i + 1 })).slice(0, 24),
     style: c.style === 'stripes' ? 'stripes' : 'solid',
     color: hex(c.color, '#59616e'),
     stripe: hex(c.stripe, '#d3d8e0'),
@@ -282,6 +335,7 @@ function normalize(o) {
   }));
   return {
     paper: hex(o.paper, SAMPLE.paper), ocean: hex(o.ocean, SAMPLE.ocean), base: hex(o.base, SAMPLE.base),
+    blocs: (Array.isArray(o.blocs) ? o.blocs : []).filter((id, i, a) => BLOCS.some(b => b.id === id) && a.indexOf(id) === i),
     admin: o.admin === true, labels: o.labels !== false, labelSize: clamp(Number(o.labelSize) || 10.5, 7, 20), graticule: o.graticule !== false, gdr: o.gdr !== false, adm2: o.adm2 === true, cats
   };
 }
@@ -291,6 +345,7 @@ function load() {
 }
 function persist() { platform.config.store(cfg); }
 
+lang = platform.pref('lang') === 'en' ? 'en' : 'zh';
 let cfg = load();
 platform.config.baseline(cfg);
 let active = cfg.cats[0] ? cfg.cats[0].id : BASE;
@@ -405,10 +460,10 @@ const hiReady = platform.data('data/countries-10m.json')
     return set;
   })
   .catch(() => {
-    $('load-note').textContent = '1:10m 细节没有加载出来，现在显示的是 1:50m。检查网络后刷新可以重试。';
+    $('load-note').textContent = t('loadHiFail');
     return DATA.lo;
   });
-$('load-note').textContent = '正在加载 1:10m 细节…';
+$('load-note').textContent = t('loadingHi');
 
 function linesFrom(topo) {
   const fc = topojson.feature(topo, topo.objects.lines);
@@ -432,7 +487,7 @@ async function ensureAdmin() {
     DATA.adminHi = linesFrom(await platform.data('data/admin1-hi.json'));
     requestDraw();
   } catch (e) {
-    if (cfg.admin) say('行政区线没有加载出来，检查网络后关掉开关再打开一次。');
+    if (cfg.admin) say(t('adminFail'));
   }
   adminLoading = false;
 }
@@ -475,9 +530,9 @@ const regionKey = (a3, level, f) => `${a3}/${level === 2 ? '2:' : ''}${f.id}`;
 async function paintRegionAt(id, ll, clear) {
   let level = paintLevel, hit = await regionAt(id, level, ll);
   if (hit.empty && level === 2) { level = 1; hit = await regionAt(id, 1, ll); }
-  if (hit.empty) { togglePaint(id, clear); say(`${nameOf(id)}没有行政区数据，已改为${clear ? '还原整个国家' : '给整个国家涂色'}。`); return; }
-  if (!hit.f) { say('这个位置没有找到行政区，换个地方再点一次。'); return; }
-  toggleRegion(regionKey(id, level, hit.f), hit.f.properties.z || hit.f.properties.n, clear);
+  if (hit.empty) { togglePaint(id, clear); say(t(clear ? 'noRegionClear' : 'noRegionPaint', { name: nameOf(id) })); return; }
+  if (!hit.f) { say(t('noRegionHere')); return; }
+  toggleRegion(regionKey(id, level, hit.f), regionName(hit.f.properties), clear);
 }
 // region keys look like "USA/US-CA" (first level) or "USA/2:<id>" (second level); shapes load on first use
 function regionShapes(a3, level) {
@@ -512,6 +567,230 @@ function loadAdmin(id, level = 1) {
       .catch(() => { delete adminCache[key]; return null; });
   }
   return adminCache[key];
+}
+
+/* ---- flags ---- */
+// one SVG per map unit, loaded once the 1:10m outlines are in; until then everything simply shows no flag
+let FLAGS = null;
+const flagSrc = {};
+function flagImg(id) {
+  if (!FLAGS || !FLAGS[id]) return null;
+  const img = document.createElement('img');
+  img.className = 'flag';
+  img.alt = '';
+  img.src = flagSrc[id] || (flagSrc[id] = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(FLAGS[id]));
+  return img;
+}
+hiReady.then(() => platform.data('data/flags.json')).then(f => { FLAGS = f; syncFlatBar(); renderBlocs(); }).catch(() => {});
+// the line under the map: an optional flag, then the text
+function setReadout(text, id) {
+  const r = $('readout');
+  r.textContent = '';
+  const flag = id && flagImg(id);
+  if (flag) r.append(flag, ' ');
+  r.append(text);
+}
+
+/* ---- blocs ---- */
+const BLOC = Object.fromEntries(BLOCS.map(b => [b.id, b]));
+for (const b of BLOCS) b.set = new Set(b.members);
+const activeBlocs = () => cfg.blocs.map(id => BLOC[id]).filter(Boolean);
+const blocColors = list => list.slice(0, 4).map(b => b.color);
+// the shown blocs a unit belongs to as a whole; a bloc that lists some of the unit's regions covers only those
+const blocsOfUnit = id => activeBlocs().filter(b => b.set.has(id) && !(b.regions && b.regions[id]));
+// a first-level region: listed by the bloc, or in a member unit and not left out
+const blocsOfRegion = (a3, rk) => activeBlocs().filter(b => b.regions && b.regions[a3] ? b.regions[a3].includes(rk) : b.set.has(a3) && !(b.except && b.except[a3] && b.except[a3].includes(rk)));
+// first-level regions whose blocs differ from their unit's; they are cut out of the unit's stripes and striped on their own
+function blocCuts() {
+  const out = new Set();
+  for (const b of activeBlocs()) for (const m of [b.regions, b.except]) if (m) for (const a3 in m) for (const rk of m[a3]) {
+    const key = `${a3}/${rk}`;
+    if (blocColors(blocsOfRegion(a3, rk)).join() !== blocColors(blocsOfUnit(a3)).join()) out.add(key);
+  }
+  return out;
+}
+const cutShape = key => { const shapes = regionShapes(key.slice(0, 3), 1); return shapes && shapes.get(key.slice(4)); };
+// stripes falling to the right, 3.2 px wide every 10 px at 60 %, one bloc colour after another (as the WebGL pass draws them)
+const blocPatterns = new Map();
+function blocPattern(ctx, colors, ratio) {
+  const id = colors.join() + '@' + ratio;
+  if (!blocPatterns.has(id)) {
+    const n = colors.length, s = Math.round(10 * n * ratio), tile = document.createElement('canvas');
+    tile.width = tile.height = s;
+    const g = tile.getContext('2d');
+    g.globalAlpha = .6;
+    g.lineWidth = 3.2 * ratio;
+    for (let k = -2 * n; k < 2 * n; k++) {
+      const c = (k * 10 + 5) * ratio;
+      g.strokeStyle = colors[((k % n) + n) % n];
+      g.beginPath(); g.moveTo(c - s, -s); g.lineTo(c + 2 * s, 2 * s); g.stroke();
+    }
+    blocPatterns.set(id, tile);
+  }
+  const p = ctx.createPattern(blocPatterns.get(id), 'repeat');
+  p.setTransform(new DOMMatrix().scale(1 / ratio));
+  return p;
+}
+// the same stripes as an SVG pattern, for exports and the country maps
+function blocPatternSvg(defs, colors, scale = 1) {
+  const n = colors.length, w = 10 * n, id = 'bloc-' + colors.map(c => c.slice(1)).join('-');
+  if (!defs.querySelector('#' + id)) {
+    const pat = el('pattern', { id, patternUnits: 'userSpaceOnUse', width: w, height: w, 'data-blocpat': 1, patternTransform: `scale(${scale})` }, defs);
+    for (let k = -2 * n; k < 2 * n; k++) {
+      const c = k * 10 + 5;
+      el('path', { d: `M${c - w} ${-w}L${c + 2 * w} ${2 * w}`, stroke: colors[((k % n) + n) % n], 'stroke-width': 3.2, 'stroke-opacity': .6 }, pat);
+    }
+  }
+  return `url(#${id})`;
+}
+function drawBlocs(ctx, path, set, center, vis, fine, ratio) {
+  if (!cfg.blocs.length) return;
+  const cuts = blocCuts(), groups = new Map();
+  for (const f of set.feats) {
+    if (d3.geoDistance(center, f.cc) > vis + f.cr) continue;
+    const list = blocsOfUnit(f.id);
+    if (!list.length) continue;
+    const k = blocColors(list).join();
+    if (!groups.has(k)) groups.set(k, { colors: blocColors(list), items: [] });
+    groups.get(k).items.push(f);
+  }
+  for (const { colors, items } of groups.values()) {
+    ctx.beginPath();
+    for (const f of items) {
+      path(fine ? visiblePolys(f, center, vis) : f);
+      // regions with other blocs are holes in their unit's stripes (even-odd)
+      for (const key of cuts) if (key.startsWith(f.id + '/')) { const r = cutShape(key); if (r) path(r); }
+    }
+    ctx.fillStyle = blocPattern(ctx, colors, ratio);
+    ctx.fill('evenodd');
+  }
+  for (const key of cuts) {
+    const r = cutShape(key), list = blocsOfRegion(key.slice(0, 3), key.slice(4));
+    if (!r || !list.length || d3.geoDistance(center, r.cc) > vis + r.cr) continue;
+    ctx.beginPath(); path(r);
+    ctx.fillStyle = blocPattern(ctx, blocColors(list), ratio);
+    ctx.fill();
+  }
+}
+// stripes as SVG paths: one path per colour combination, cut-out regions as even-odd holes
+function blocPathsSvg(parent, defs, items, path, scale = 1) {
+  if (!cfg.blocs.length) return;
+  const cuts = blocCuts(), groups = new Map();
+  for (const [id, geom] of items) {
+    const list = blocsOfUnit(id);
+    if (!list.length) continue;
+    let d = path(geom) || '';
+    for (const key of cuts) if (key.startsWith(id + '/')) { const r = cutShape(key); if (r) d += path(r) || ''; }
+    const k = blocColors(list).join();
+    groups.set(k, (groups.get(k) || '') + d);
+  }
+  for (const [k, d] of groups) if (d) el('path', { d, fill: blocPatternSvg(defs, k.split(','), scale), 'fill-rule': 'evenodd', class: 'nohit' }, parent);
+  for (const key of cuts) {
+    if (!items.some(([id]) => key.startsWith(id + '/'))) continue;
+    const r = cutShape(key), list = blocsOfRegion(key.slice(0, 3), key.slice(4)), d = r && path(r);
+    if (d && list.length) el('path', { d, fill: blocPatternSvg(defs, blocColors(list), scale), class: 'nohit' }, parent);
+  }
+}
+// one click: the bloc's members (and its listed regions) take the current colour, or lose their colour with the unpainted brush
+function paintBloc(b) {
+  const c = activeCat(), regs = b.regions ? Object.entries(b.regions).flatMap(([a3, list]) => list.map(rk => `${a3}/${rk}`)) : [];
+  for (const k of cfg.cats) { k.ids = k.ids.filter(id => !b.set.has(id) || (b.regions && b.regions[id])); k.regions = k.regions.filter(r => !regs.includes(r)); }
+  if (c) { c.ids.push(...b.members.filter(id => !(b.regions && b.regions[id]))); c.regions.push(...regs); }
+  rebuildAssign();
+  refreshMap();
+  renderBrushes();
+  syncEditor();
+  commit();
+  const n = b.members.length + Object.keys(b.regions || {}).length;
+  say((c ? t('blocPainted', { bloc: b[lang], n, cat: c.name }) : t('blocCleared', { bloc: b[lang], n })) + (b.except && c ? (lang === 'en' ? ' ' : '') + t('blocGreenland') : ''));
+}
+function renderBlocs() {
+  const box = $('blocs');
+  if (!box) return;
+  const open = new Set([...box.querySelectorAll('details[open]')].map(d => d.dataset.bloc));
+  box.textContent = '';
+  for (const b of BLOCS) {
+    const wrap = document.createElement('div');
+    wrap.className = 'bloc';
+    const row = document.createElement('label');
+    row.className = 'check';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.id = 'bloc-' + b.id;
+    cb.checked = cfg.blocs.includes(b.id);
+    cb.setAttribute('aria-label', t('blocShow', { name: b[lang] }));
+    cb.addEventListener('change', () => {
+      cfg.blocs = cb.checked ? [...cfg.blocs, b.id] : cfg.blocs.filter(x => x !== b.id);
+      if (cb.checked) for (const a3 of Object.keys({ ...b.regions, ...b.except })) regionShapes(a3, 1);
+      refreshMap();
+      commit();
+    });
+    const sw = document.createElement('span');
+    sw.className = 'sw';
+    sw.style.background = `repeating-linear-gradient(45deg, ${b.color} 0 3px, transparent 3px 7px)`;
+    sw.style.borderColor = b.color;
+    const name = document.createElement('span');
+    name.textContent = b[lang] + ' ';
+    const years = document.createElement('span');
+    years.className = 'years';
+    years.textContent = b.years;
+    name.append(years);
+    const count = document.createElement('span');
+    count.className = 'n';
+    count.textContent = t('blocMembers', { n: b.members.length + Object.keys(b.regions || {}).length });
+    row.append(cb, sw, name, count);
+    const det = document.createElement('details');
+    det.dataset.bloc = b.id;
+    det.open = open.has(b.id);
+    const sum = document.createElement('summary');
+    sum.textContent = t('blocList');
+    const body = document.createElement('div');
+    const note = document.createElement('p');
+    note.className = 'note';
+    note.textContent = b.full[lang] + t('dot') + b.note[lang];
+    const flags = document.createElement('div');
+    flags.className = 'member-flags';
+    const members = b.members.filter(id => !(b.regions && b.regions[id])).sort((x, y) => nameOf(x).localeCompare(nameOf(y), lang === 'en' ? 'en' : 'zh'));
+    for (const id of members) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      const st = b.status && b.status[id];
+      const label = nameOf(id) + (st ? t('paren', { s: t(st === 'frozen' ? 'statusFrozen' : 'statusAbsent') }) : '') + (b.except && b.except[id] ? t('paren', { s: t('exceptGreenland') }) : '');
+      btn.title = label;
+      btn.setAttribute('aria-label', label);
+      if (st) btn.classList.add('status');
+      const flag = flagImg(id);
+      if (flag) btn.append(flag); else btn.textContent = nameOf(id);
+      btn.addEventListener('click', () => { if (view === 'flat') closeCountry(); flyTo(id); });
+      flags.append(btn);
+    }
+    // the GDR, drawn from the eastern German states, has no flag of its own here
+    for (const a3 in b.regions || {}) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'chip-text';
+      btn.textContent = t('gdr');
+      btn.addEventListener('click', () => { if (view === 'flat') closeCountry(); flyTo(a3); });
+      flags.append(btn);
+    }
+    body.append(note, flags);
+    if (b.former) {
+      const f = document.createElement('p');
+      f.className = 'note';
+      f.textContent = t('former', { list: Object.entries(b.former).map(([id, y]) => `${nameOf(id)}${t('paren', { s: y })}`).join(t('sep')) });
+      body.append(f);
+    }
+    const paint = document.createElement('button');
+    paint.type = 'button';
+    paint.className = 'btn';
+    const c = activeCat();
+    paint.textContent = c ? t('blocPaint', { cat: c.name }) : t('blocClear');
+    paint.addEventListener('click', () => paintBloc(b));
+    body.append(paint);
+    det.append(sum, body);
+    wrap.append(row, det);
+    box.append(wrap);
+  }
 }
 
 /* ---- globe drawing ---- */
@@ -600,6 +879,7 @@ function drawGlobe(ctx, { w, h, ratio, set, admin, rotate, seal, z }) {
     ctx.fill();
     ctx.strokeStyle = style; ctx.lineWidth = .4; ctx.stroke();
   }
+  drawBlocs(ctx, path, set, center, vis, fine, ratio);
   ctx.beginPath(); path(fine ? visibleLines(set.lines, center, vis) : set.lines);
   ctx.strokeStyle = 'rgba(0,0,0,.3)'; ctx.lineWidth = .55; ctx.stroke();
   if (admin) {
@@ -657,7 +937,13 @@ function drawBase() {
 let glView = null;
 let glReady = false;
 let glHi = null;
-const glColorOf = key => key.includes('/') ? regionAssign.get(key) || null : assign.get(key) || { color: cfg.base, style: 'solid' };
+let glCuts = new Set();
+const glColorOf = key => {
+  if (!key.includes('/')) return { ...(assign.get(key) || { color: cfg.base, style: 'solid' }), blocs: blocColors(blocsOfUnit(key)) };
+  const own = regionAssign.get(key), cut = glCuts.has(key);
+  if (!own && !cut) return null;
+  return { ...(own || {}), cut, blocs: cut ? blocColors(blocsOfRegion(key.slice(0, 3), key.slice(4))) : [] };
+};
 function showGlobeCanvases(on) {
   baseCanvas.hidden = !on || glReady;
   glCanvas.hidden = !on || !glReady;
@@ -670,6 +956,8 @@ function drawGL() {
       const f = shapes && shapes.get(level === 2 ? rest.slice(2) : rest);
       if (f) glView.addRegion(key, f);
     }
+    glCuts = blocCuts();
+    for (const key of glCuts) { const f = cutShape(key); if (f) glView.addRegion(key, f); }
     glView.setColors(glColorOf);
     glDirty = false;
   }
@@ -729,8 +1017,8 @@ function showMeter() {
   const now = performance.now(), recent = frameLog.filter(q => now - q[0] < 1000), last = frameLog[frameLog.length - 1];
   const s = recent.length > 2 && now - recent[recent.length - 1][0] < 300 ? frameStats(recent) : null;
   $('fps').textContent = s
-    ? `${renderer} · ${s.fps.toFixed(0)} fps · 每帧 ${s.gap.toFixed(1)} ms（最慢 ${s.p95.toFixed(1)}）· 绘制 ${s.draw.toFixed(1)} ms`
-    : `${renderer} · 静止 · 上一帧绘制 ${last ? last[1].toFixed(1) : '–'} ms`;
+    ? t('meterMoving', { r: renderer, fps: s.fps.toFixed(0), gap: s.gap.toFixed(1), p95: s.p95.toFixed(1), draw: s.draw.toFixed(1) })
+    : t('meterStill', { r: renderer, ms: last ? last[1].toFixed(1) : '–' });
 }
 function setMeter(on) {
   $('t-fps').checked = on;
@@ -885,11 +1173,11 @@ hlCanvas.addEventListener('keydown', e => {
     turn(...moves[e.key]);
     settle();
     const id = pickLL([-rot[0], -rot[1]]);
-    $('readout').textContent = id ? `正中央：${nameOf(id)}` : '正中央：海洋';
+    setReadout(id ? t('centre', { name: nameOf(id) }) : t('centreOcean'), id);
   } else if (e.key === 'Enter' || e.key === ' ') {
     e.preventDefault();
     const id = pickLL([-rot[0], -rot[1]]);
-    if (id) act(id, e.altKey); else say('正中央没有国家，先转到一个国家上。');
+    if (id) act(id, e.altKey); else say(t('noCentre'));
   } else if (e.key === '+' || e.key === '=') {
     e.preventDefault();
     zoomGlobe(1.5);
@@ -945,7 +1233,7 @@ function hoverRegionAt(id, ll) {
     drawOverlay();
     if (!f) return;
     const key = regionKey(id, level, f), c = regionAssign.get(key) || assign.get(id);
-    $('readout').textContent = `${f.properties.z || f.properties.n}（${codeOf(key)}）· ${nameOf(id)} · ${c ? c.name : '未涂色'}`;
+    setReadout(`${regionName(f.properties)}${t('paren', { s: codeOf(key) })}${t('dot')}${nameOf(id)}${t('dot')}${c ? c.name : t('unpainted')}`, id);
   });
 }
 let hoverRaf = 0;
@@ -965,32 +1253,53 @@ function setHighlight(id) { highlight = id; drawOverlay(); }
 function showCountry(id) {
   if (!id) return showHint();
   const c = assign.get(id);
-  $('readout').textContent = `${nameOf(id)} · ${c ? c.name : '未涂色'}`;
+  const blocs = blocsOfUnit(id).map(b => b[lang]);
+  setReadout(`${nameOf(id)}${t('dot')}${c ? c.name : t('unpainted')}${blocs.length ? t('dot') + t('memberOf', { list: blocs.join(t('sep')) }) : ''}`, id);
 }
 function showHint() {
   $('readout').textContent = view === 'flat' ? flatHint
-    : mode === 'paint' ? (paintLevel > 0 ? '点击行政区单独涂色，再点一次取消，按住 Option（Alt）点击直接还原；鼠标停在国家上会显示行政区和代码。拖动旋转，滚轮或双指缩放。' : '点击国家涂上当前颜色，再点一次取消，按住 Option（Alt）点击直接还原成未涂色。拖动旋转，滚轮或双指缩放。')
-    : '点击国家打开它的平面地图。拖动旋转，滚轮或双指缩放。';
+    : mode === 'paint' ? t(paintLevel > 0 ? 'hintRegion' : 'hintCountry')
+    : t('hintView');
 }
 
+// turn to the capital (src/capitals.js; the largest polygon where there is none) and zoom until the country fills the view
 function flyTo(id) {
   const f = DATA.lo.byId[id] || (DATA.hi && DATA.hi.byId[id]);
   if (!f) return;
-  const target = d3.geoCentroid(largestPolygon(f.geometry));
+  const cap = CAPITALS[id];
+  const target = cap ? [cap[0], cap[1]] : d3.geoCentroid(largestPolygon(f.geometry));
+  // only the part around the capital counts: France without its overseas departments, Denmark without Greenland
+  // (its own cache key, as the flat map clusters the 1:10m shapes)
+  const parts = clustersOf({ id: id + ':fly', geometry: f.geometry });
+  const near = c => d3.geoDistance(target, d3.geoCentroid(c.geom));
+  const part = parts.find(c => d3.geoContains(c.geom, target)) || parts.reduce((a, b) => near(b) < near(a) ? b : a);
+  // fit the largest landmass, and the islands no further out than it reaches (the US without Alaska, Japan without Okinawa)
+  const main = largestPolygon(part.geom);
+  let reach = 0;
+  for (const p of main.coordinates[0]) reach = Math.max(reach, d3.geoDistance(target, p));
+  const limit = reach * 1.25;
+  for (const poly of part.geom.coordinates) for (const p of poly[0]) { const d = d3.geoDistance(target, p); if (d > reach && d <= limit) reach = d; }
+  const toZ = reach >= Math.PI / 2 ? 1 : clamp(.85 / Math.sin(reach), 1, GLOBE_MAX);
   const from = rot.slice(), toL = -target[0], toP = clampLat(-target[1]);
   const dL = ((toL - from[0] + 540) % 360 + 360) % 360 - 180, dP = toP - from[1];
+  // on a long way, pull back halfway so both ends stay in sight
+  const travel = d3.geoDistance([-from[0], -from[1]], target);
+  const lz0 = Math.log(zoom), lz1 = Math.log(toZ);
+  const lzMid = Math.log(clamp(1 / Math.sin(Math.min(Math.PI / 2, travel / 2 + .1)), 1, GLOBE_MAX));
+  const dip = Math.max(0, (lz0 + lz1) / 2 - lzMid);
   stopMotion();
   setHighlight(id);
   showCountry(id);
-  if (REDUCED) { rot = [from[0] + dL, toP, 0]; moving = false; requestDraw(); return; }
-  const t0 = performance.now();
+  if (REDUCED) { rot = [from[0] + dL, toP, 0]; zoom = toZ; moving = false; requestDraw(); syncZoom(); return; }
+  const t0 = performance.now(), ms = Math.min(1200, 600 + 250 * (Math.abs(lz1 - lz0) + dip));
   const step = now => {
-    const u = Math.min(1, (now - t0) / 600), e = u * u * (3 - 2 * u);
+    const u = Math.min(1, (now - t0) / ms), e = u * u * (3 - 2 * u);
     rot = [from[0] + dL * e, from[1] + dP * e, 0];
+    zoom = u < 1 ? Math.exp(lz0 + (lz1 - lz0) * e - dip * 4 * e * (1 - e)) : toZ;
     moving = true;
     requestDraw();
     if (u < 1) inertia = requestAnimationFrame(step);
-    else { inertia = 0; settle(); }
+    else { inertia = 0; settle(); syncZoom(); }
   };
   inertia = requestAnimationFrame(step);
 }
@@ -1140,7 +1449,7 @@ function labelItems(regions, path, id, prefix = '', proj) {
     const [[x0, y0], [x1, y1]] = path.bounds(piece);
     if (!isFinite(x0)) continue;
     const p = r.properties;
-    const text = id === 'USA' && p.c ? p.c : shortName(p.z || p.n);
+    const text = id === 'USA' && p.c ? p.c : shortName(regionName(p));
     const ts = cfg.labelSize, tw = textWidth(text, ts);
     const [cx, cy] = proj ? labelPoint(piece, path, proj, tw, ts * .6) : path.centroid(piece);
     if (!isFinite(cx)) continue;
@@ -1182,7 +1491,7 @@ function drawSeaInset(node, set, fill) {
     if (d) el('path', { d, fill: f.id === 'CHN' ? fill : cfg.base, stroke: '#000', 'stroke-opacity': .3, 'stroke-width': .4, 'data-sw': .4 }, g);
   }
   el('path', { d: path(DASHES) || '', fill: 'none', stroke: '#000', 'stroke-opacity': .75, 'stroke-width': 1.2, 'data-sw': 1.2 }, g);
-  addText(g, '南海诸岛', x + w / 2, y + h - 5, 9, 500, textOn(cfg.paper), 'middle');
+  addText(g, t('scs'), x + w / 2, y + h - 5, 9, 500, textOn(cfg.paper), 'middle');
 }
 async function buildFlat(id, node, view = HOME) {
   const set = await hiReady;
@@ -1229,6 +1538,7 @@ async function buildFlat(id, node, view = HOME) {
     const rf = catFill(rc);
     el('path', { d, fill: rf, stroke: rf, 'stroke-width': .3, 'data-sw': .3, class: 'nohit' }, paper);
   }
+  blocPathsSvg(paper, defs, [[id, core]], path, 1 / view.k);
   if (cfg.adm2 && adm2Topo) {
     const mesh2 = dropSeams(topojson.mesh(adm2Topo, adm2Topo.objects.r, (a, b) => a !== b).coordinates);
     el('path', { d: path(mesh2) || '', fill: 'none', stroke: '#000', 'stroke-opacity': .14, 'stroke-width': .35, 'data-sw': .35, 'stroke-linejoin': 'round', class: 'nohit' }, paper);
@@ -1247,7 +1557,7 @@ async function buildFlat(id, node, view = HOME) {
   for (const r of hitLevel === 2 ? regions2 : regions) {
     const d = path(r);
     if (!d) continue;
-    el('path', { d, fill: 'transparent', 'data-ui': 1, 'data-key': (hitLevel === 2 ? '2:' : '') + r.id, 'data-name': r.properties.z || r.properties.n }, paper);
+    el('path', { d, fill: 'transparent', 'data-ui': 1, 'data-key': (hitLevel === 2 ? '2:' : '') + r.id, 'data-name': regionName(r.properties) }, paper);
   }
   const ctx = {
     g: el('g', {}, paper),
@@ -1266,7 +1576,7 @@ async function buildFlat(id, node, view = HOME) {
     const ip = conicFor(inset.geom).fitExtent([[x + 8, top + 6], [x + boxW - 8, top + boxH - 20]], inset.geom);
     const ipath = d3.geoPath(ip).digits(2);
     const named = (INSET_LABELS[id] || []).find(([pt]) => d3.geoContains(inset.geom, pt));
-    const label = named ? named[1] : insetName(inset, regions);
+    const label = named ? t(named[1]) : insetName(inset, regions);
     el('path', { d: ipath(inset.geom) || '', fill, stroke: '#000', 'stroke-opacity': .36, 'stroke-width': .5, 'data-sw': .5, 'data-name': label || nameOf(id) }, g);
     if (label) {
       let s = label;
@@ -1285,7 +1595,7 @@ function insetName(inset, regions) {
     const d = d3.geoDistance(c, d3.geoCentroid(r));
     if (d < dist) { dist = d; best = r; }
   }
-  return best ? shortName(best.properties.z || best.properties.n) : '';
+  return best ? shortName(regionName(best.properties)) : '';
 }
 
 let flatId = null;
@@ -1298,6 +1608,7 @@ function applyFlatView() {
   n.setAttribute('viewBox', `${v.x.toFixed(2)} ${v.y.toFixed(2)} ${(FLAT.w / v.k).toFixed(2)} ${(FLAT.h / v.k).toFixed(2)}`);
   n.querySelectorAll('[data-sw]').forEach(p => p.setAttribute('stroke-width', (+p.dataset.sw / v.k).toFixed(4)));
   n.querySelectorAll('[data-hatch]').forEach(p => p.setAttribute('patternTransform', `rotate(45) scale(${(1 / v.k).toFixed(4)})`));
+  n.querySelectorAll('[data-blocpat]').forEach(p => p.setAttribute('patternTransform', `scale(${(1 / v.k).toFixed(4)})`));
   n.querySelectorAll('[data-dash]').forEach(p => p.setAttribute('stroke-dasharray', p.dataset.dash.split(' ').map(x => (x / v.k).toFixed(3)).join(' ')));
 }
 function relabel() {
@@ -1349,7 +1660,7 @@ function toggleRegion(key, name, clear) {
   syncEditor();
   commit();
   const now = regionAssign.get(key);
-  $('readout').textContent = `${name}（${codeOf(key)}）· ${now ? now.name : '跟随国家颜色'}`;
+  setReadout(`${name}${t('paren', { s: codeOf(key) })}${t('dot')}${now ? now.name : t('follows')}`, key.slice(0, 3));
 }
 let flatHint = '';
 let flatToken = 0;
@@ -1370,22 +1681,25 @@ async function renderFlat() {
   flatCtx = info.ctx;
   applyFlatView();
   const bits = [];
-  if (info.insets) bits.push('插图的比例和主图不同。');
-  if (info.omitted) bits.push(`另有 ${info.omitted} 处小块领土没有显示。`);
-  if (!info.regions) bits.push('这个地区没有下一级行政区数据。');
-  if (flatId === 'DEU' && cfg.gdr) bits.push('虚线是 1951–1990 年的东西德边界和西柏林边界。');
-  if (paintLevel === 2 && !info.regions2) bits.push('这个国家没有二级行政区数据，点击时会涂一级行政区。');
-  flatHint = (bits.join('') || '把鼠标移到行政区上可以看名称。') + (paintLevel === 0 ? '现在点击会给整个国家涂色，上方可以切到一级或二级行政区。' : '点击行政区可以单独涂色，再点一次取消。') + '按住 Option（Alt）点击可以直接还原。' + '滚轮或双指缩放，拖动平移。';
+  if (info.insets) bits.push(t('flatInsets'));
+  if (info.omitted) bits.push(t('flatOmitted', { n: info.omitted }));
+  if (!info.regions) bits.push(t('flatNoRegions'));
+  if (flatId === 'DEU' && cfg.gdr) bits.push(t('flatGdr'));
+  if (paintLevel === 2 && !info.regions2) bits.push(t('flatNoAdm2'));
+  flatHint = (bits.join('') || t('flatHover')) + t(paintLevel === 0 ? 'flatClickCountry' : 'flatClickRegion') + t('flatOption') + t('flatGestures');
   showHint();
   $('load-note').textContent = '';
   syncFlatBar();
 }
 function syncFlatBar() {
   if (!flatId) return;
-  $('flat-name').textContent = nameOf(flatId);
+  const fn = $('flat-name'), flag = flagImg(flatId);
+  fn.textContent = '';
+  if (flag) fn.append(flag, ' ');
+  fn.append(nameOf(flatId));
   const c = activeCat(), cur = assign.get(flatId);
   const removing = !c ? !!cur : cur === c;
-  $('flat-paint').textContent = !c ? '取消涂色' : removing ? `取消“${c.name}”` : `涂上“${c.name}”`;
+  $('flat-paint').textContent = !c ? t('flatUnpaint') : t(removing ? 'flatUnpaintCat' : 'flatPaintCat', { name: c.name });
   $('flat-paint').disabled = !c && !cur;
 }
 function openCountry(id) {
@@ -1402,8 +1716,8 @@ function openCountry(id) {
   showGlobeCanvases(false);
   $('flat').removeAttribute('hidden');
   $('flat').replaceChildren();
-  $('flat').setAttribute('aria-label', nameOf(id) + '的平面地图');
-  $('load-note').textContent = '正在绘制…';
+  $('flat').setAttribute('aria-label', t('flatAria', { name: nameOf(id) }));
+  $('load-note').textContent = t('drawing');
   syncFlatBar();
   renderFlat();
   $('back').focus();
@@ -1430,7 +1744,7 @@ function setUnit(n) {
   paintLevel = n;
   for (const k of [0, 1, 2]) { $('unit-' + k).checked = k === n; $('lvl-' + k).checked = k === n; }
   hoverRegion = null;
-  if (view === 'flat') { $('load-note').textContent = n === 2 ? '正在加载二级行政区…' : ''; renderFlat(); return; }
+  if (view === 'flat') { $('load-note').textContent = n === 2 ? t('loadingAdm2') : ''; renderFlat(); return; }
   if (n > 0) setMode('paint');
   drawOverlay();
   showHint();
@@ -1465,13 +1779,13 @@ function renderBrushes() {
     box.appendChild(b);
   };
   let used = 0;
-  for (const c of cfg.cats) { add(c.id, c.name, swatchCss(c), c.regions.length ? `${c.ids.length} · ${c.regions.length} 区` : c.ids.length); used += c.ids.length; }
-  add(BASE, '未涂色', cfg.base, CODES.size - used);
+  for (const c of cfg.cats) { add(c.id, c.name, swatchCss(c), c.regions.length ? t('brushCount', { a: c.ids.length, b: c.regions.length }) : c.ids.length); used += c.ids.length; }
+  add(BASE, t('unpainted'), cfg.base, CODES.size - used);
   const plus = document.createElement('button');
   plus.type = 'button';
   plus.className = 'chip add';
   plus.id = 'add-cat';
-  plus.textContent = '添加颜色';
+  plus.textContent = t('addColour');
   box.appendChild(plus);
 }
 function setMode(next) {
@@ -1490,7 +1804,7 @@ $('brushes').addEventListener('click', e => {
     const color = NEW_COLORS.find(h => !cfg.cats.some(c => c.color === h)) || NEW_COLORS[0];
     let i = cfg.cats.length + 1;
     while (cfg.cats.some(c => c.id === 'c' + i)) i++;
-    cfg.cats.push({ id: 'c' + i, name: '颜色 ' + i, style: 'solid', color, stripe: '#d3d8e0', ids: [], regions: [] });
+    cfg.cats.push({ id: 'c' + i, name: t('newColour', { n: i }), style: 'solid', color, stripe: '#d3d8e0', ids: [], regions: [] });
     active = 'c' + i;
     setMode('paint');
     renderAll();
@@ -1502,6 +1816,7 @@ $('brushes').addEventListener('click', e => {
   active = b.dataset.id;
   setMode('paint');
   renderBrushes();
+  renderBlocs();
   syncEditor();
   syncFlatBar();
   $('brushes').querySelector(`[data-id="${active}"]`).focus();
@@ -1513,8 +1828,8 @@ function syncEditor() {
   const isBase = !c;
   $('f-name').hidden = $('f-style').hidden = $('f-ids').hidden = $('cat-delete').hidden = isBase;
   $('f-stripe').hidden = isBase || c.style !== 'stripes';
-  $('ed-title').textContent = isBase ? '未涂色的国家' : '当前颜色';
-  $('color-label').textContent = isBase ? '填充颜色' : (c.style === 'stripes' ? '底色' : '颜色');
+  $('ed-title').textContent = t(isBase ? 'unpaintedCountries' : 'edTitle');
+  $('color-label').textContent = t(isBase ? 'fill' : c.style === 'stripes' ? 'ground' : 'colour');
   const color = isBase ? cfg.base : c.color;
   $('cat-color').value = color;
   $('cat-hex').value = color;
@@ -1525,13 +1840,13 @@ function syncEditor() {
     $('style-stripes').checked = c.style === 'stripes';
     $('cat-stripe').value = c.stripe;
     $('cat-stripe-hex').value = c.stripe;
-    $('cat-ids').value = c.ids.map(nameOf).join('、');
-    const where = [...new Set(c.regions.map(r => nameOf(r.slice(0, 3))))].join('、');
+    $('cat-ids').value = c.ids.map(nameOf).join(t('sep'));
+    const where = [...new Set(c.regions.map(r => nameOf(r.slice(0, 3))))].join(t('sep'));
     $('cat-regs').value = c.regions.map(codeOf).join(', ');
     $('regs-err').hidden = true;
     $('cat-regions').textContent = c.regions.length
-      ? `共 ${c.regions.length} 个，分布在${where}。把鼠标移到行政区上可以看到代码，二级如 USA-0412，一级如 USA.US-CA。`
-      : '把涂色单位切到“一级”或“二级”，点击行政区就能单独涂色；也可以在这里直接输入代码。';
+      ? t('catRegions', { n: c.regions.length, where })
+      : t('catRegionsNone');
   }
 }
 function syncBase() {
@@ -1549,7 +1864,7 @@ function syncBase() {
   $('t-adm2').checked = cfg.adm2;
 }
 function syncCfgText() { if ($('cfg-box').open) $('cfg-text').value = JSON.stringify(cfg, null, 2); }
-function renderAll() { rebuildAssign(); refreshMap(); renderBrushes(); syncEditor(); syncBase(); syncCfgText(); syncFlatBar(); }
+function renderAll() { rebuildAssign(); refreshMap(); renderBrushes(); syncEditor(); syncBase(); syncCfgText(); syncFlatBar(); renderBlocs(); }
 
 function bindColor(pick, text, get, set) {
   const live = v => { set(v.toLowerCase()); refreshMap(); renderBrushes(); };
@@ -1605,8 +1920,8 @@ $('cat-ids').addEventListener('change', e => {
   renderAll();
   commit();
   if (bad.length) {
-    $('cat-ids').value = c.ids.map(nameOf).concat(bad).join('、');
-    $('ids-err').textContent = `没有找到：${bad.join('、')}。其余的国家已经涂好。`;
+    $('cat-ids').value = c.ids.map(nameOf).concat(bad).join(t('sep'));
+    $('ids-err').textContent = t('idsBad', { list: bad.join(t('sep')) });
     $('ids-err').hidden = false;
   }
 });
@@ -1629,7 +1944,7 @@ $('cat-regs').addEventListener('change', async e => {
   commit();
   if (bad.length) {
     $('cat-regs').value = ok.map(codeOf).concat(bad).join(', ');
-    $('regs-err').textContent = `没有找到这些代码：${bad.join('、')}。其余的已经涂好。`;
+    $('regs-err').textContent = t('regsBad', { list: bad.join(t('sep')) });
     $('regs-err').hidden = false;
   }
 });
@@ -1641,7 +1956,7 @@ $('cat-delete').addEventListener('click', () => {
   active = cfg.cats[Math.min(i, cfg.cats.length - 1)]?.id || BASE;
   renderAll();
   commit();
-  say(`已删除“${name}”。它涂过的国家变回未涂色，点“撤销”可以恢复。`);
+  say(t('deleted', { name }));
 });
 for (const [id, key] of [['t-labels', 'labels'], ['t-grat', 'graticule'], ['t-admin', 'admin'], ['t-gdr', 'gdr'], ['t-adm2', 'adm2']]) {
   $(id).addEventListener('change', e => {
@@ -1670,34 +1985,84 @@ $('undo').addEventListener('click', () => {
 });
 $('reset').addEventListener('click', () => {
   cfg = normalize(clone(SAMPLE));
+  cfg.cats.forEach((c, i) => { c.name = t('sample' + (i + 1)); });
   active = cfg.cats[0].id;
   renderAll();
   commit();
-  say('已恢复示例配色，点“撤销”可以回到刚才的版本。');
+  say(t('resetDone'));
 });
 
-/* ---- search ---- */
-const findList = $('find-list');
-for (const [id, z, n] of META.names.slice().sort((a, b) => a[1].localeCompare(b[1], 'zh'))) {
-  const o = document.createElement('option');
-  o.value = z;
-  o.label = n;
-  findList.appendChild(o);
+/* ---- search, with flags ---- */
+const findBox = $('find'), findPop = $('find-pop');
+let findHits = [], findAt = -1;
+function findMatches(q) {
+  q = q.trim().toLowerCase();
+  if (!q) return [];
+  const out = [];
+  for (const [id, z, n] of META.names) {
+    const score = [z.toLowerCase(), n.toLowerCase(), id.toLowerCase()].reduce((m, k) => Math.min(m, k === q ? 0 : k.startsWith(q) ? 1 : k.includes(q) ? 2 : 9), 9);
+    if (score < 9) out.push([score, id]);
+  }
+  // aliases (台湾, Greenland …) lead to the unit that holds them
+  const alias = LOOKUP.get(q);
+  if (alias && !out.some(o => o[1] === alias)) out.push([0, alias]);
+  return out.sort((a, b) => a[0] - b[0] || nameOf(a[1]).localeCompare(nameOf(b[1]), lang === 'en' ? 'en' : 'zh')).slice(0, 8).map(o => o[1]);
 }
-$('find').addEventListener('change', e => {
-  const t = e.target.value.trim();
-  if (!t) return;
-  const id = LOOKUP.get(t.toLowerCase());
-  if (id) { flyTo(id); e.target.value = ''; }
-  else say(`没有找到“${t}”。可以试试中文名、英文名或三位代码。`);
+function showFind() {
+  findPop.textContent = '';
+  findHits.forEach((id, i) => {
+    const li = document.createElement('li');
+    li.id = 'find-opt-' + i;
+    li.setAttribute('role', 'option');
+    li.setAttribute('aria-selected', String(i === findAt));
+    const flag = flagImg(id);
+    if (flag) li.appendChild(flag);
+    const main = document.createElement('span'), sub = document.createElement('span');
+    main.textContent = nameOf(id);
+    sub.className = 'sub';
+    sub.textContent = lang === 'en' ? NAMES[id].z : NAMES[id].n;
+    li.append(main, sub);
+    li.addEventListener('pointerdown', e => { e.preventDefault(); pickFind(id); });
+    findPop.appendChild(li);
+  });
+  findPop.hidden = !findHits.length;
+  findBox.setAttribute('aria-expanded', String(findHits.length > 0));
+  if (findAt >= 0) findBox.setAttribute('aria-activedescendant', 'find-opt-' + findAt);
+  else findBox.removeAttribute('aria-activedescendant');
+}
+function pickFind(id) {
+  findBox.value = '';
+  findHits = [];
+  findAt = -1;
+  showFind();
+  flyTo(id);
+}
+findBox.addEventListener('input', () => { findHits = findMatches(findBox.value); findAt = findHits.length ? 0 : -1; showFind(); });
+findBox.addEventListener('keydown', e => {
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    if (!findHits.length) return;
+    e.preventDefault();
+    findAt = (findAt + (e.key === 'ArrowDown' ? 1 : findHits.length - 1)) % findHits.length;
+    showFind();
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    const q = findBox.value.trim();
+    if (findAt >= 0) pickFind(findHits[findAt]);
+    else if (q) say(t('findNone', { t: q }));
+  } else if (e.key === 'Escape') {
+    findHits = [];
+    findAt = -1;
+    showFind();
+  }
 });
+findBox.addEventListener('blur', () => { findHits = []; findAt = -1; showFind(); });
 
 /* ---- export ---- */
 function say(text) { $('msg').textContent = text; }
 function flatExportNode() {
   const node = $('flat').cloneNode(true);
   node.querySelectorAll('[data-ui]').forEach(n => n.remove());
-  node.querySelectorAll('[data-name],[class],[data-sw],[data-hatch],[data-dash],[data-key]').forEach(n => { for (const a of ['data-name', 'class', 'data-sw', 'data-hatch', 'data-dash', 'data-key']) n.removeAttribute(a); });
+  node.querySelectorAll('[data-name],[class],[data-sw],[data-hatch],[data-dash],[data-key],[data-blocpat]').forEach(n => { for (const a of ['data-name', 'class', 'data-sw', 'data-hatch', 'data-dash', 'data-key', 'data-blocpat']) n.removeAttribute(a); });
   for (const a of ['role', 'aria-label', 'id', 'hidden']) node.removeAttribute(a);
   node.setAttribute('xmlns', NS);
   return node;
@@ -1737,6 +2102,7 @@ function globeSvgNode() {
     const fill = fillOf(c);
     for (const f of items) { const d = path(f); if (d) el('path', { d, fill, stroke: fill, 'stroke-width': .4 }, g); }
   }
+  blocPathsSvg(g, defs, set.feats.filter(f => d3.geoDistance(center, f.cc) <= vis + f.cr).map(f => [f.id, fine ? visiblePolys(f, center, vis) : f]), path);
   el('path', { d: path(fine ? visibleLines(set.lines, center, vis) : set.lines) || '', fill: 'none', stroke: '#000', 'stroke-opacity': .3, 'stroke-width': .55, 'stroke-linejoin': 'round' }, node);
   const admin = cfg.admin ? DATA.adminHi || DATA.adminLo : null;
   if (admin) el('path', { d: path(fine ? visibleLines(admin, center, vis) : admin) || '', fill: 'none', stroke: '#000', 'stroke-opacity': .2, 'stroke-width': .4, 'stroke-linejoin': 'round' }, node);
@@ -1746,7 +2112,7 @@ function globeSvgNode() {
   return node;
 }
 const serialize = node => new XMLSerializer().serializeToString(node);
-const toBlob = canvas => new Promise((ok, no) => canvas.toBlob(b => b ? ok(b) : no(new Error('PNG 生成失败。')), 'image/png'));
+const toBlob = canvas => new Promise((ok, no) => canvas.toBlob(b => b ? ok(b) : no(new Error(t('pngFail'))), 'image/png'));
 async function globePng() {
   const set = await hiReady, W = 2400, ratio = W / size.w;
   if (glReady && glHi) await glHi;
@@ -1778,7 +2144,7 @@ async function flatPng() {
   const url = URL.createObjectURL(new Blob([serialize(node)], { type: 'image/svg+xml' }));
   try {
     const img = new Image();
-    await new Promise((ok, no) => { img.onload = ok; img.onerror = () => no(new Error('地图图像生成失败。')); img.src = url; });
+    await new Promise((ok, no) => { img.onload = ok; img.onerror = () => no(new Error(t('mapImgFail'))); img.src = url; });
     try { await document.fonts.load('500 20px Inter'); } catch (e) {}
     const canvas = document.createElement('canvas');
     canvas.width = W;
@@ -1807,14 +2173,14 @@ const fileBase = () => view === 'flat' ? `map-${flatId}` : 'world-globe';
 let downloads = null;
 async function save(filename, make) {
   if (!downloads) return;
-  say('正在生成文件…');
+  say(t('saving'));
   try {
     await downloads.save({ filename, data: await make() });
-    say(`已保存 ${filename}。`);
+    say(t('saved', { f: filename }));
   } catch (e) {
-    if (e && e.code === 'declined') say('已取消保存。');
-    else if (e && e.code === 'rate_limited') say('已有一个保存提示在等待确认，先处理它再试。');
-    else say((e && e.message) || '这次没有保存成功，可以改用“复制 SVG 代码”。');
+    if (e && e.code === 'declined') say(t('saveCancelled'));
+    else if (e && e.code === 'rate_limited') say(t('saveBusy'));
+    else say((e && e.message) || t('saveFail'));
   }
 }
 $('save-png').addEventListener('click', () => save(fileBase() + '.png', currentPng));
@@ -1825,7 +2191,7 @@ $('copy-svg').addEventListener('click', () => {
   const write = typeof ClipboardItem === 'function' && navigator.clipboard.write
     ? navigator.clipboard.write([new ClipboardItem({ 'text/plain': text.then(s => new Blob([s], { type: 'text/plain' })) })])
     : text.then(s => navigator.clipboard.writeText(s));
-  write.then(() => say('SVG 代码已复制。'), () => say('浏览器没有允许复制，可以改用“保存 SVG”。'));
+  write.then(() => say(t('svgCopied')), () => say(t('copyBlocked')));
 });
 (async () => {
   downloads = await platform.files();
@@ -1835,7 +2201,7 @@ $('copy-svg').addEventListener('click', () => {
 /* ---- config JSON ---- */
 $('cfg-box').addEventListener('toggle', syncCfgText);
 $('cfg-copy').addEventListener('click', () => {
-  navigator.clipboard.writeText($('cfg-text').value).then(() => say('配置已复制。'), () => { $('cfg-text').select(); say('浏览器没有允许复制，配置已选中，可以手动复制。'); });
+  navigator.clipboard.writeText($('cfg-text').value).then(() => say(t('cfgCopied')), () => { $('cfg-text').select(); say(t('cfgCopyBlocked')); });
 });
 $('cfg-apply').addEventListener('click', () => {
   try {
@@ -1845,12 +2211,43 @@ $('cfg-apply').addEventListener('click', () => {
     if (cfg.admin) ensureAdmin();
     renderAll();
     commit();
-    say('配置已应用。');
+    say(t('cfgApplied'));
   } catch (e) {
-    $('cfg-err').textContent = e instanceof SyntaxError ? 'JSON 格式有误，检查一下括号和引号。' : e.message;
+    $('cfg-err').textContent = e instanceof SyntaxError ? t('cfgSyntax') : e.message;
     $('cfg-err').hidden = false;
   }
 });
+
+/* ---- interface theme ---- */
+// "system" leaves the choice to the browser, the Artifact viewer or macOS; light and dark pin it. The map keeps its own colours.
+const hostTheme = document.documentElement.getAttribute('data-theme');
+function setTheme(t) {
+  const root = document.documentElement, pinned = t === 'light' || t === 'dark';
+  if (pinned) root.setAttribute('data-theme', t);
+  else if (hostTheme) root.setAttribute('data-theme', hostTheme);
+  else root.removeAttribute('data-theme');
+  for (const k of ['system', 'light', 'dark']) $('theme-' + k).checked = k === (pinned ? t : 'system');
+}
+for (const k of ['system', 'light', 'dark']) $('theme-' + k).addEventListener('change', e => { setTheme(e.target.value); platform.pref('theme', e.target.value); });
+setTheme(platform.pref('theme') || 'system');
+if (platform.titleBar) {
+  document.documentElement.classList.add('titlebar-inset');
+  $('titlebar').hidden = false;
+}
+platform.on('title', t => { $('titlebar').textContent = (t.dirty ? '● ' : '') + t.name; });
+
+/* ---- language ---- */
+function setLang(next) {
+  lang = next === 'en' ? 'en' : 'zh';
+  $('lang-zh').checked = lang === 'zh';
+  $('lang-en').checked = lang === 'en';
+  translatePage();
+  renderAll();
+  showHint();
+  if (meterTimer) showMeter();
+  if (view === 'flat') renderFlat();
+}
+for (const k of ['zh', 'en']) $('lang-' + k).addEventListener('change', e => { setLang(e.target.value); platform.pref('lang', lang); });
 
 /* ---- desktop menu ---- */
 // a project opened from disk, or a new one, replaces the colours and starts a fresh undo history
@@ -1875,6 +2272,7 @@ platform.on('svg', () => save(fileBase() + '.svg', currentSvg));
 
 resize();
 startGL();
+setLang(lang);
 renderAll();
 showHint();
 syncZoom();

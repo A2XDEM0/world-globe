@@ -3,6 +3,9 @@
 // Lines are instanced quads sized in screen pixels; each line layer is drawn into one channel of an offscreen coverage buffer with
 // MAX blending, so dense coastlines do not darken where segments overlap, then composited the way the Canvas 2D strokes are.
 // Projection and rotation follow d3.geoOrthographic().rotate([λ, φ, 0]) exactly, so the Canvas 2D overlay and picking line up.
+// Blocs are a second pass over the same meshes: stripes falling to the right, one bloc colour after another, in screen space.
+// Regions whose blocs differ from their country's (Greenland in the EU, the GDR in the Warsaw Pact) are cut out of the country's
+// stripes with the stencil buffer and striped on their own, so nothing has to be repainted and painted districts stay visible.
 const GlobeGL = (() => {
   const RAD = Math.PI / 180;
   const EDGE = Math.cos(1 * RAD); // ring and line edges longer than 1° are cut along the great circle
@@ -131,10 +134,30 @@ vec4 clip(vec2 s) { return vec4(s.x / uView.x * 2.0 - 1.0, 1.0 - s.y / uView.y *
 in vec4 aPos; out float vDepth; flat out int vSlot;
 void main() { vec3 p = uRot * aPos.xyz; gl_Position = clip(screen(p)); vDepth = p.x; vSlot = int(aPos.w + 0.5); }`;
   const FILL_FS = HEAD + `
-in float vDepth; flat in int vSlot; uniform sampler2D uColors; uniform float uRatio; uniform float uPeriod; uniform float uHeight; out vec4 o;
+in float vDepth; flat in int vSlot; uniform sampler2D uColors; uniform float uRatio; uniform float uPeriod; uniform float uHeight; uniform int uMode; uniform int uCutOnly; out vec4 o;
 void main() {
   if (vDepth < 0.0) discard;
-  ivec2 at = ivec2((vSlot % 256) * 2, vSlot / 256);
+  ivec2 at = ivec2((vSlot % 256) * 6, vSlot / 256);
+  bool cut = texelFetch(uColors, at + ivec2(1, 0), 0).a < 0.75;
+  if (uMode == 2) { if (!cut) discard; o = vec4(0.0); return; }
+  if (uMode == 1) {
+    if (uCutOnly == 1 && !cut) discard;
+    vec3 b0 = vec3(0.0), b1 = vec3(0.0), b2 = vec3(0.0), b3 = vec3(0.0);
+    int n = 0;
+    for (int i = 0; i < 4; i++) {
+      vec4 b = texelFetch(uColors, at + ivec2(2 + i, 0), 0);
+      if (b.a > 0.0) { if (n == 0) b0 = b.rgb; else if (n == 1) b1 = b.rgb; else if (n == 2) b2 = b.rgb; else b3 = b.rgb; n++; }
+    }
+    if (n == 0) discard;
+    vec2 q = vec2(gl_FragCoord.x, uHeight - gl_FragCoord.y) / uRatio;
+    float u = q.x - q.y + 1200.0, band = floor(u / 10.0);
+    int k = int(mod(band, float(n)));
+    vec3 b = k == 0 ? b0 : k == 1 ? b1 : k == 2 ? b2 : b3;
+    float d = abs(mod(u, 10.0) - 5.0) * 0.70710678, a = 0.6 * clamp((1.6 - d) * uRatio + 0.5, 0.0, 1.0);
+    if (a <= 0.0) discard;
+    o = vec4(b * a, a);
+    return;
+  }
   vec4 c = texelFetch(uColors, at, 0);
   if (c.a == 0.0) discard;
   vec3 col = c.rgb;
@@ -197,7 +220,7 @@ void main() {
 }`;
 
   function create(canvas) {
-    const gl = canvas.getContext('webgl2', { antialias: true, alpha: false, depth: false, stencil: false, premultipliedAlpha: true, preserveDrawingBuffer: false, powerPreference: 'high-performance' });
+    const gl = canvas.getContext('webgl2', { antialias: true, alpha: false, depth: false, stencil: true, premultipliedAlpha: true, preserveDrawingBuffer: false, powerPreference: 'high-performance' });
     if (!gl) return null;
     const compile = (vs, fs) => {
       const p = gl.createProgram();
@@ -232,26 +255,31 @@ void main() {
     gl.bindBuffer(gl.ARRAY_BUFFER, corner);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, -1, 1, -1, 0, 1, 0, 1, 1, -1, 1, 1]), gl.STATIC_DRAW);
 
-    /* colour slots: two texels each (fill rgb + style, stripe rgb), 256 slots per row */
+    /* colour slots: six texels each (fill rgb + style, stripe rgb + cut flag, four bloc colours), 256 slots per row */
     const slots = new Map();
-    let colorRows = 0, colorTex = gl.createTexture(), colorData = new Uint8Array(0);
+    let colorRows = 0, colorTex = gl.createTexture(), colorData = new Uint8Array(0), blocs = false;
     const slotOf = key => { let s = slots.get(key); if (s === undefined) { s = slots.size; slots.set(key, s); } return s; };
     const hex = (h, out, at) => { out[at] = parseInt(h.slice(1, 3), 16); out[at + 1] = parseInt(h.slice(3, 5), 16); out[at + 2] = parseInt(h.slice(5, 7), 16); };
     function setColors(colorOf) {
       const rows = Math.max(1, Math.ceil(slots.size / 256));
-      if (rows !== colorRows) { colorRows = rows; colorData = new Uint8Array(512 * 4 * rows); }
+      if (rows !== colorRows) { colorRows = rows; colorData = new Uint8Array(1536 * 4 * rows); }
       else colorData.fill(0);
+      blocs = false;
       for (const [key, s] of slots) {
         const c = colorOf(key);
         if (!c) continue;
-        const at = s * 8;
-        hex(c.color, colorData, at);
-        colorData[at + 3] = c.style === 'stripes' ? 128 : 255;
-        hex(c.stripe || c.color, colorData, at + 4);
-        colorData[at + 7] = 255;
+        const at = s * 24;
+        // a slot with blocs but no paint of its own (a region only there for its blocs) leaves the fill empty
+        if (c.color) {
+          hex(c.color, colorData, at);
+          colorData[at + 3] = c.style === 'stripes' ? 128 : 255;
+          hex(c.stripe || c.color, colorData, at + 4);
+        }
+        colorData[at + 7] = c.cut ? 128 : 255;
+        (c.blocs || []).slice(0, 4).forEach((b, i) => { hex(b, colorData, at + 8 + i * 4); colorData[at + 11 + i * 4] = 255; blocs = true; });
       }
       gl.bindTexture(gl.TEXTURE_2D, colorTex);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, 512, colorRows, 0, gl.RGBA, gl.UNSIGNED_BYTE, colorData);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, 1536, colorRows, 0, gl.RGBA, gl.UNSIGNED_BYTE, colorData);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     }
@@ -417,7 +445,7 @@ void main() {
       gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
       const paper = rgb(s.paper);
       gl.clearColor(paper[0], paper[1], paper[2], 1);
-      gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.clear(gl.COLOR_BUFFER_BIT | gl.STENCIL_BUFFER_BIT);
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, cover[0]);
       gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, cover[1]);
       gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, colorTex);
@@ -436,8 +464,35 @@ void main() {
       gl.uniform1i(fill.u.uColors, 2);
       gl.uniform1f(fill.u.uRatio, s.ratio);
       gl.uniform1f(fill.u.uPeriod, Math.max(2, Math.round(9 * s.ratio)) / s.ratio);
+      gl.uniform1i(fill.u.uMode, 0);
+      gl.uniform1i(fill.u.uCutOnly, 0);
       if (countries.count) { gl.bindVertexArray(countries.vao); gl.drawElements(gl.TRIANGLES, countries.count, gl.UNSIGNED_INT, 0); }
       if (regions.count) { gl.bindVertexArray(regions.vao); gl.drawElements(gl.TRIANGLES, regions.count, gl.UNSIGNED_INT, 0); }
+
+      // 3b. bloc stripes: mark the cut-out regions in the stencil, stripe the countries around them, then stripe the regions
+      if (blocs && countries.count) {
+        gl.enable(gl.STENCIL_TEST);
+        if (regions.count) {
+          gl.colorMask(false, false, false, false);
+          gl.stencilFunc(gl.ALWAYS, 1, 0xff);
+          gl.stencilOp(gl.KEEP, gl.KEEP, gl.REPLACE);
+          gl.uniform1i(fill.u.uMode, 2);
+          gl.bindVertexArray(regions.vao); gl.drawElements(gl.TRIANGLES, regions.count, gl.UNSIGNED_INT, 0);
+          gl.colorMask(true, true, true, true);
+        }
+        gl.enable(gl.BLEND);
+        gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+        gl.uniform1i(fill.u.uMode, 1);
+        gl.stencilFunc(gl.EQUAL, 0, 0xff);
+        gl.stencilOp(gl.KEEP, gl.KEEP, gl.KEEP);
+        gl.bindVertexArray(countries.vao); gl.drawElements(gl.TRIANGLES, countries.count, gl.UNSIGNED_INT, 0);
+        gl.disable(gl.STENCIL_TEST);
+        if (regions.count) {
+          gl.uniform1i(fill.u.uCutOnly, 1);
+          gl.bindVertexArray(regions.vao); gl.drawElements(gl.TRIANGLES, regions.count, gl.UNSIGNED_INT, 0);
+        }
+        gl.disable(gl.BLEND);
+      }
 
       // 4. strokes and the rim
       gl.disable(gl.CULL_FACE);

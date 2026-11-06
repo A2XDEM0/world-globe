@@ -4,3 +4,4 @@ work/
 dist/
 release/
 desktop/app/
+.DS_Store

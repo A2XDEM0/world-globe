@@ -5,6 +5,8 @@
 //   compare   draws the same views with WebGL and with the Canvas 2D code and measures how far apart they are
 //   features  hover readout with region codes, wheel zoom, PNG and SVG export, painting without rebuilding the mesh
 //   fallback  with WebGL switched off the page falls back to Canvas 2D and still picks
+//   blocs     bloc stripes in the right places (East and West Germany, Greenland outside the EU), one-click painting, flags in search
+//   i18n      the English interface: text, names, the country map's labels
 import puppeteer from 'puppeteer-core';
 import fs from 'fs';
 const BATCH = process.argv[2] || 'spots', URL = process.argv[3] || 'http://127.0.0.1:8765/wrap.html';
@@ -37,7 +39,7 @@ try {
     const spots = [['楚科奇（180° 以西）', [176, 66], 'RUS'], ['楚科奇（180° 以东）', [-172.5, 65], 'RUS'], ['斐济维提岛', [178, -17.8], 'FJI'], ['斐济塔韦乌尼（跨 180°）', [-179.95, -16.8], 'FJI'],
       ['斐济拉克巴（180° 以东）', [-178.8, -18.2], 'FJI'], ['南极点', [0, -90], 'ATA'], ['南极洲 180° 切缝', [180, -85], 'ATA'], ['南极洲内陆', [30, -80], 'ATA'], ['罗斯冰架（数据里是海）', [-170, -82], null],
       ['格陵兰', [-42, 72], 'DNK'], ['苏必利尔湖', [-87.5, 47.7], null], ['密歇根湖', [-87, 44], null], ['伊利湖', [-81.2, 42.2], null], ['克里米亚', [34, 45], 'RUS'], ['顿涅茨克', [37.8, 48], 'RUS'],
-      ['台湾', [121, 23.7], 'CHN'], ['香港', [114.15, 22.4], 'CHN'], ['科索沃', [21, 42.6], 'SRB'], ['藏南', [93, 28], 'CHN']];
+      ['台湾', [121, 23.7], 'CHN'], ['香港', [114.15, 22.4], 'CHN'], ['科索沃', [21, 42.6], 'SRB'], ['藏南', [93, 28], 'CHN'], ['钓鱼岛', [123.527, 25.766], 'CHN']];
     for (const [name, ll, want] of spots) {
       await p.evaluate(ll => centerOn(ll, 6), ll);
       await p.mouse.move(cx + 2, cy); await p.mouse.move(cx, cy); await sleep(60);
@@ -53,7 +55,7 @@ try {
     }
     // Berlin: the hover readout at the first level names West and East Berlin
     await p.evaluate(() => setUnit(1));
-    for (const [name, ll, want] of [['西柏林', [13.3, 52.5], '西柏林'], ['东柏林', [13.45, 52.52], '东柏林']]) {
+    for (const [name, ll, want] of [['西柏林', [13.3, 52.5], '西柏林'], ['东柏林', [13.45, 52.52], '东柏林'], ['钓鱼岛属台湾省', [123.527, 25.766], '台湾省']]) {
       await p.evaluate(ll => centerOn(ll, 10), ll);
       await p.mouse.move(cx + 3, cy); await p.mouse.move(cx, cy);
       await p.waitForFunction(w => $('readout').textContent.includes(w), { timeout: 4000 }, want).catch(() => {});
@@ -84,8 +86,9 @@ try {
     // the sample colours with stripes, at several views; per-pixel differences between WebGL and Canvas 2D
     await p.evaluate(() => { cfg = normalize(clone(SAMPLE)); cfg.admin = true; ensureAdmin(); renderAll(); });
     await p.waitForFunction('DATA.adminHi', { timeout: 10000 });
-    for (const [name, ll, z] of [['全球', [-40, 20], 1], ['欧洲 3 倍', [15, 50], 3], ['中国 2 倍', [105, 30], 2], ['法国斜线 6 倍', [2.5, 46.5], 6], ['北极', [0, 80], 1.2]]) {
-      const d = await p.evaluate((ll, z) => {
+    for (const [name, ll, z] of [['全球', [-40, 20], 1], ['欧洲 3 倍', [15, 50], 3], ['中国 2 倍', [105, 30], 2], ['法国斜线 6 倍', [2.5, 46.5], 6], ['北极', [0, 80], 1.2], ['阵营叠加（北约、华约、欧盟）', [15, 52], 2.5]]) {
+      const d = await p.evaluate((ll, z, blocs) => {
+        if (blocs) { cfg.blocs = ['nato', 'warsaw', 'eu']; refreshMap(); }
         centerOn(ll, z);
         const ratio = size.ratio, g = glImage(ratio), c = cvImage(ratio), W = g.width, H = g.height;
         const a = g.getContext('2d').getImageData(0, 0, W, H).data, bb = c.getContext('2d').getImageData(0, 0, W, H).data;
@@ -94,7 +97,8 @@ try {
         const both = document.createElement('canvas'); both.width = W * 2; both.height = H;
         const x = both.getContext('2d'); x.drawImage(g, 0, 0); x.drawImage(c, W, 0);
         return { off: off / (W * H), mean: sum / (W * H), url: both.toDataURL('image/png') };
-      }, ll, z);
+      }, ll, z, name.startsWith('阵营'));
+      if (name.startsWith('阵营')) await p.waitForFunction(() => regionShapes('DEU', 1) && regionShapes('DNK', 1), { timeout: 8000 }).catch(() => {});
       fs.writeFileSync(`work/compare-${name.replace(/\s/g, '')}.png`, Buffer.from(d.url.split(',')[1], 'base64'));
       // stripes are anchored to the screen in both, lines differ by a fraction of a pixel; anything above a few percent is a real mismatch
       check(name, d.off < .03, `差异像素 ${(d.off * 100).toFixed(2)}%，平均差 ${d.mean.toFixed(2)}/255`);
@@ -185,6 +189,77 @@ try {
     await sleep(1200);
     await p.evaluate(() => drawBase());
     await p.screenshot({ path: 'work/germany-neuhaus.png', clip: sheet });
+  }
+  if (BATCH === 'blocs') {
+    // which bloc colours show in a 40 px window around a place, read from the WebGL picture
+    const probe = (ll, z) => p.evaluate((ll, z) => {
+      centerOn(ll, z);
+      const c = glImage(1), x = Math.round(size.w / 2), y = Math.round(size.h / 2), px = c.getContext('2d').getImageData(x - 20, y - 20, 40, 40).data;
+      const rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)), base = rgb(cfg.base), out = {};
+      for (const b of BLOCS) {
+        const want = rgb(b.color).map((v, i) => base[i] * .4 + v * .6);
+        let n = 0;
+        for (let i = 0; i < px.length; i += 4) if (Math.hypot(px[i] - want[0], px[i + 1] - want[1], px[i + 2] - want[2]) < 14) n++;
+        if (n > 15) out[b.id] = n;
+      }
+      return Object.keys(out).sort().join('+') || '无';
+    }, ll, z);
+    await p.evaluate(() => { cfg.blocs = ['nato', 'warsaw']; refreshMap(); regionShapes('DEU', 1); });
+    await p.waitForFunction(() => regionShapes('DEU', 1), { timeout: 8000 });
+    await sleep(300);
+    for (const [name, ll, want] of [['莱比锡（东德）', [12.37, 51.34], 'nato+warsaw'], ['汉诺威（西德）', [9.73, 52.37], 'nato'], ['华沙', [21, 52.2], 'nato+warsaw'], ['莫斯科', [37.6, 55.75], 'warsaw'], ['马德里', [-3.7, 40.4], 'nato']]) {
+      const got = await probe(ll, 6);
+      check(name, got === want, `${got}（应为 ${want}）`);
+    }
+    await p.evaluate(() => { cfg.blocs = ['eu', 'nato']; refreshMap(); regionShapes('DNK', 1); });
+    await p.waitForFunction(() => regionShapes('DNK', 1), { timeout: 8000 });
+    await sleep(300);
+    for (const [name, ll, want] of [['格陵兰（不在欧盟）', [-42, 72], 'nato'], ['日德兰（丹麦本土）', [9.3, 56.2], 'eu+nato'], ['斯德哥尔摩', [18.1, 59.3], 'eu+nato'], ['奥斯陆（不在欧盟）', [10.75, 59.9], 'nato'], ['维也纳（不在北约）', [16.37, 48.2], 'eu']]) {
+      const got = await probe(ll, ll[1] > 70 ? 3 : name.startsWith('维也纳') ? 10 : 6);
+      check(name, got === want, `${got}（应为 ${want}）`);
+    }
+    // hover readout names the shown blocs
+    await p.evaluate(() => centerOn([2.5, 46.5], 4));
+    await p.mouse.move(cx + 2, cy); await p.mouse.move(cx, cy);
+    await p.waitForFunction(() => $('readout').textContent.includes('属于'), { timeout: 4000 }).catch(() => {});
+    const ro = await p.$eval('#readout', n => ({ text: n.textContent, flag: !!n.querySelector('img.flag') }));
+    check('悬停显示国旗和阵营', ro.flag && ro.text.includes('欧盟') && ro.text.includes('北约'), JSON.stringify(ro));
+    // one click: the EU's members take the current colour; then the unpainted brush clears them
+    const painted = await p.evaluate(() => { paintBloc(BLOC.eu); return { n: cfg.cats[0].ids.length, dnk: assign.get('DNK') && assign.get('DNK').id, msg: $('msg').textContent }; });
+    check('一键涂色（欧盟）', painted.n === 27 && painted.dnk === 't' && painted.msg.includes('格陵兰'), JSON.stringify(painted));
+    const cleared = await p.evaluate(() => { active = BASE; paintBloc(BLOC.eu); return cfg.cats[0].ids.length; });
+    check('未涂色画笔一键还原', cleared === 0, `剩 ${cleared} 个`);
+    const warsaw = await p.evaluate(() => { active = 't'; paintBloc(BLOC.warsaw); return { ids: cfg.cats[0].ids.length, regions: cfg.cats[0].regions.map(codeOf).join(' ') }; });
+    check('一键涂色（华约含东德各州）', warsaw.ids === 21 && warsaw.regions.split(' ').length === 7, JSON.stringify(warsaw));
+    // the bloc panel lists members with flags
+    const panel = await p.evaluate(() => { document.querySelector('details[data-bloc="nam"]').open = true; return { nam: document.querySelectorAll('details[data-bloc="nam"] .member-flags img.flag').length, frozen: [...document.querySelectorAll('details[data-bloc="csto"] .member-flags button.status')].map(b => b.title).join() }; });
+    check('阵营成员国旗', panel.nam === 120 && panel.frozen.includes('冻结'), JSON.stringify(panel));
+    // search: type, see flags, pick with Enter
+    await p.click('#find'); await p.keyboard.type('germ');
+    await sleep(200);
+    const pop = await p.evaluate(() => ({ items: [...document.querySelectorAll('#find-pop li')].map(li => li.textContent), flags: document.querySelectorAll('#find-pop img.flag').length }));
+    await p.keyboard.press('Enter'); await sleep(900);
+    const flew = await p.evaluate(() => [Math.round(-rot[0]), Math.round(-rot[1])]);
+    check('搜索列表带国旗', pop.items[0] && pop.items[0].startsWith('德国') && pop.flags > 0 && Math.abs(flew[0] - 10) < 3 && Math.abs(flew[1] - 51) < 3, JSON.stringify({ pop, flew }));
+    await p.evaluate(() => { cfg.blocs = ['nato', 'warsaw']; refreshMap(); centerOn([12, 52], 3); });
+    await sleep(400);
+    await p.screenshot({ path: 'work/blocs-europe.png', clip: { x: box.x, y: box.y, width: box.width, height: box.height } });
+  }
+
+  if (BATCH === 'i18n') {
+    await p.click('#lang-en + span'); await sleep(300);
+    const en = await p.evaluate(() => ({ h1: document.querySelector('h1').textContent, hint: $('readout').textContent, unit: document.querySelector('[data-i18n="unit1"]').textContent, note: document.querySelector('.note[data-i18n="note"]').textContent.slice(0, 30), lang: document.documentElement.lang, pref: platform.pref('lang'), ids: $('cat-ids').value }));
+    check('界面切到英文', en.h1 === 'World Color Globe' && en.hint.startsWith('Click a country') && en.unit === 'Level 1' && en.note.startsWith('Drawn with custom borders') && en.lang === 'en' && en.pref === 'en', JSON.stringify(en));
+    await p.evaluate(() => { cfg.cats[0].ids = ['DEU']; renderAll(); setUnit(1); openCountry('DEU'); });
+    await p.waitForFunction(() => document.querySelectorAll('#flat text').length > 3, { timeout: 10000 });
+    const flat = await p.evaluate(() => ({ title: $('flat-name').textContent, flag: !!$('flat-name').querySelector('img.flag'), labels: [...$('flat').querySelectorAll('text')].map(n => n.textContent).slice(0, 8), paint: $('flat-paint').textContent }));
+    check('英文平面图', flat.title.includes('Germany') && flat.flag && flat.labels.some(l => /Bavaria|Saxony|Hesse|Berlin/.test(l)) && /“|Clear|Paint|Remove/.test(flat.paint), JSON.stringify(flat));
+    const svg = await p.evaluate(async () => (await currentSvg()).includes('Bavaria') || (await currentSvg()).includes('Saxony'));
+    check('导出跟随语言', svg, String(svg));
+    await p.evaluate(() => closeCountry());
+    await p.click('#lang-zh + span'); await sleep(300);
+    const zh = await p.evaluate(() => ({ h1: document.querySelector('h1').textContent, pref: platform.pref('lang') }));
+    check('切回中文', zh.h1 === '世界色彩地球' && zh.pref === 'zh', JSON.stringify(zh));
   }
   r.renderer = await p.evaluate(() => renderer);
 } catch (e) { errs.push('TEST ' + e.message); }

@@ -3,7 +3,7 @@
 set -e
 R=$(cd "$(dirname "$0")/.." && pwd); P=$R/raw; mkdir -p $P; cd $P
 NE=https://naciscdn.org/naturalearth/10m
-for n in cultural/ne_10m_admin_0_countries_chn cultural/ne_10m_admin_1_states_provinces_lakes cultural/ne_10m_admin_0_boundary_lines_maritime_indicator_chn physical/ne_10m_lakes; do
+for n in cultural/ne_10m_admin_0_countries_chn cultural/ne_10m_admin_1_states_provinces_lakes cultural/ne_10m_admin_0_boundary_lines_maritime_indicator_chn physical/ne_10m_lakes cultural/ne_10m_populated_places_simple; do
   b=$(basename $n); mkdir -p $b; curl -fsSL -o $b.zip $NE/$n.zip; unzip -qo $b.zip -d $b; rm $b.zip
 done
 mkdir -p cgaz && curl -fsSL -o cgaz/adm2.zip https://github.com/wmgeolab/geoBoundaries/raw/main/releaseData/CGAZ/geoBoundariesCGAZ_ADM2.zip && unzip -qo cgaz/adm2.zip -d cgaz && rm cgaz/adm2.zip

@@ -11,6 +11,8 @@ const platform = (() => {
     host.onCommand((name, arg) => handlers[name] && handlers[name](arg));
     return {
       kind: 'desktop',
+      // macOS: the window has no system title bar, the page draws the strip under the window controls
+      titleBar: host.platform === 'darwin',
       data: readJSON,
       files: async () => ({
         async save({ filename, data }) {
@@ -26,12 +28,13 @@ const platform = (() => {
         store: cfg => host.projectChanged(JSON.stringify(cfg))
       },
       pref: (key, value) => host.pref(key, value),
-      // menu commands from the main process: undo, png, svg, project (a newly opened or new project)
+      // commands from the main process: undo, png, svg, project (a newly opened or new project), title (file name and unsaved mark)
       on: (name, fn) => { handlers[name] = fn; }
     };
   }
   return {
     kind: 'web',
+    titleBar: false,
     data: readJSON,
     files: async () => window.claude && window.claude.use ? window.claude.use('downloads') : null,
     config: {

@@ -5,6 +5,7 @@ const boot = ipcRenderer.sendSync('boot');
 const prefs = { ...boot.prefs };
 
 contextBridge.exposeInMainWorld('globeHost', {
+  platform: process.platform,
   project: boot.project,
   projectBaseline: json => ipcRenderer.send('project:baseline', String(json)),
   projectChanged: json => ipcRenderer.send('project:changed', String(json)),
