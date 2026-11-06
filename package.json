@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "可以按国家和行政区上色的世界地球",
   "private": true,
+  "license": "GPL-3.0-only",
   "type": "module",
   "main": "desktop/main.mjs",
   "scripts": {
