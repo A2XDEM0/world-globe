@@ -289,10 +289,11 @@ details > div { display: grid; gap: 10px; margin-top: 14px }
       <details id="cfg-box">
         <summary data-i18n="cfgSummary">配置 JSON（备份或导入）</summary>
         <div>
-          <label class="note" for="cfg-text" data-i18n="cfgNote">颜色和分组保存在这个浏览器里。换设备时，复制这段配置，粘贴到新页面后点“应用”。</label>
+          <label class="note" for="cfg-text" data-i18n="cfgNote">颜色和分组保存在这个浏览器里。换设备时，复制这段配置，粘贴到新页面后点“应用”；也可以直接导入之前存下的 .json 文件。</label>
           <textarea id="cfg-text" class="mono" rows="8" spellcheck="false"></textarea>
           <p class="err" id="cfg-err" hidden></p>
-          <div class="row"><button class="btn" id="cfg-copy" data-i18n="copy" type="button">复制</button><button class="btn" id="cfg-apply" data-i18n="apply" type="button">应用</button></div>
+          <div class="row"><button class="btn" id="cfg-copy" data-i18n="copy" type="button">复制</button><button class="btn" id="cfg-apply" data-i18n="apply" type="button">应用</button><button class="btn" id="cfg-import" data-i18n="importFile" type="button">导入 .json 文件</button></div>
+          <input type="file" id="cfg-file" accept=".json,application/json" hidden>
         </div>
       </details>
     </section>
@@ -2249,19 +2250,30 @@ $('cfg-box').addEventListener('toggle', syncCfgText);
 $('cfg-copy').addEventListener('click', () => {
   navigator.clipboard.writeText($('cfg-text').value).then(() => say(t('cfgCopied')), () => { $('cfg-text').select(); say(t('cfgCopyBlocked')); });
 });
-$('cfg-apply').addEventListener('click', () => {
+function applyCfgText(text, done) {
   try {
-    cfg = normalize(JSON.parse($('cfg-text').value));
+    cfg = normalize(JSON.parse(text));
     $('cfg-err').hidden = true;
     if (active !== BASE && !activeCat()) active = cfg.cats[0]?.id || BASE;
     if (cfg.admin) ensureAdmin();
     renderAll();
     commit();
-    say(t('cfgApplied'));
+    say(done);
   } catch (e) {
     $('cfg-err').textContent = e instanceof SyntaxError ? t('cfgSyntax') : e.message;
     $('cfg-err').hidden = false;
   }
+}
+$('cfg-apply').addEventListener('click', () => applyCfgText($('cfg-text').value, t('cfgApplied')));
+// a configuration saved earlier (copied from here, or a desktop project file); it goes through the same checks as pasted text
+$('cfg-import').addEventListener('click', () => $('cfg-file').click());
+$('cfg-file').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if (!file) return;
+  const text = await file.text();
+  $('cfg-text').value = text;
+  applyCfgText(text, t('cfgImported', { name: file.name }));
 });
 
 /* ---- interface theme ---- */
