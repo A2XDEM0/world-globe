@@ -1,5 +1,5 @@
 // Blocs: drawn as an overlay layer, and usable as one-click selections for painting. Members are map units (the custom borders
-// apply: Taiwan counts with China, Kosovo with Serbia, Greenland with Denmark). Where a bloc covers only part of a unit, `regions`
+// apply: Taiwan counts with China, Kosovo with Serbia, Greenland and the Faroes with Denmark). Where a bloc covers only part of a unit, `regions`
 // lists the first-level regions it does cover and `except` the ones it leaves out. Membership as of November 2026.
 // status: frozen (membership suspended by the member) or absent (a member that takes no part); both are still drawn.
 // former: members that have left, with the year; listed, not drawn.
@@ -7,9 +7,9 @@ const BLOCS = [
   {
     id: 'eu', color: '#3f63ad', zh: '欧盟', en: 'EU', full: { zh: '欧洲联盟', en: 'European Union' }, years: '1993–',
     members: 'AUT BEL BGR HRV CYP CZE DNK EST FIN FRA DEU GRC HUN IRL ITA LVA LTU LUX MLT NLD POL PRT ROU SVK SVN ESP SWE'.split(' '),
-    except: { DNK: ['GL-SM', 'GL-UO', 'GL-QA', 'GL-QE', 'GL-KU'] },
+    except: { DNK: ['GL-SM', 'GL-UO', 'GL-QA', 'GL-QE', 'GL-KU', 'FO'] },
     former: { GBR: 2020 },
-    note: { zh: '格陵兰属于丹麦，但不在欧盟内，图上不计入。', en: 'Greenland belongs to Denmark but is outside the EU, so it is left out.' }
+    note: { zh: '格陵兰和法罗群岛属于丹麦，但不在欧盟内，图上不计入。', en: 'Greenland and the Faroe Islands belong to Denmark but are outside the EU, so they are left out.' }
   },
   {
     id: 'nato', color: '#2a7a86', zh: '北约', en: 'NATO', full: { zh: '北大西洋公约组织', en: 'North Atlantic Treaty Organization' }, years: '1949–',

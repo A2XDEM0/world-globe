@@ -215,7 +215,8 @@ try {
     await p.waitForFunction(() => regionShapes('DNK', 1), { timeout: 8000 });
     await sleep(300);
     for (const [name, ll, want] of [['格陵兰（不在欧盟）', [-42, 72], 'nato'], ['日德兰（丹麦本土）', [9.3, 56.2], 'eu+nato'], ['斯德哥尔摩', [18.1, 59.3], 'eu+nato'], ['奥斯陆（不在欧盟）', [10.75, 59.9], 'nato'], ['维也纳（不在北约）', [16.37, 48.2], 'eu']]) {
-      const got = await probe(ll, ll[1] > 70 ? 3 : name.startsWith('维也纳') ? 10 : 6);
+      // Oslo is about 75 km from Sweden, so it is probed closer in: at 6× the 40 px window reaches the border
+      const got = await probe(ll, ll[1] > 70 ? 3 : name.startsWith('维也纳') || name.startsWith('奥斯陆') ? 10 : 6);
       check(name, got === want, `${got}（应为 ${want}）`);
     }
     // hover readout names the shown blocs
@@ -239,8 +240,9 @@ try {
     await sleep(200);
     const pop = await p.evaluate(() => ({ items: [...document.querySelectorAll('#find-pop li')].map(li => li.textContent), flags: document.querySelectorAll('#find-pop img.flag').length }));
     await p.keyboard.press('Enter'); await sleep(900);
-    const flew = await p.evaluate(() => [Math.round(-rot[0]), Math.round(-rot[1])]);
-    check('搜索列表带国旗', pop.items[0] && pop.items[0].startsWith('德国') && pop.flags > 0 && Math.abs(flew[0] - 10) < 3 && Math.abs(flew[1] - 51) < 3, JSON.stringify({ pop, flew }));
+    // the search flies to the capital, Berlin
+    const flew = await p.evaluate(() => [+(-rot[0]).toFixed(1), +(-rot[1]).toFixed(1)]);
+    check('搜索列表带国旗', pop.items[0] && pop.items[0].startsWith('德国') && pop.flags > 0 && Math.abs(flew[0] - 13.4) < 1 && Math.abs(flew[1] - 52.5) < 1, JSON.stringify({ pop, flew }));
     await p.evaluate(() => { cfg.blocs = ['nato', 'warsaw']; refreshMap(); centerOn([12, 52], 3); });
     await sleep(400);
     await p.screenshot({ path: 'work/blocs-europe.png', clip: { x: box.x, y: box.y, width: box.width, height: box.height } });

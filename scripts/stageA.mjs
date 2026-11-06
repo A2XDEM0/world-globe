@@ -12,7 +12,7 @@ for(const k in missing){const votes={};for(const f of missing[k]){const biggest=
 console.log('a1 units not in China view ->',JSON.stringify(map));
 console.log('a0 CN props sample',['PGA','SCR','PFA','KAS','KOS'].map(k=>k+':'+have.has(k)).join(' '));
 fs.writeFileSync(W+'/map.json',JSON.stringify(map));
-const merged={HKG:'CHN',MAC:'CHN',SCR:'CHN',PGA:'CHN',GRL:'DNK'};
+const merged={HKG:'CHN',MAC:'CHN',SCR:'CHN',PGA:'CHN',GRL:'DNK',FRO:'DNK'};
 const OVER={CHN:['中国','China'],SPI:['南巴塔哥尼亚冰原'],IOA:['澳属印度洋领地'],KOR:['韩国'],PRK:['朝鲜']};
 const names=a0.features.map(f=>f.properties).filter(p=>!merged[p.ADM0_A3]).map(p=>{const o=OVER[p.ADM0_A3]||[];return [p.ADM0_A3,o[0]||p.NAME_ZH||p.NAME,o[1]||p.NAME]});
 fs.writeFileSync(W+'/names.json',JSON.stringify(names));console.log('names',names.length);

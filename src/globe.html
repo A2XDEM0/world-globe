@@ -216,7 +216,7 @@ details > div { display: grid; gap: 10px; margin-top: 14px }
     </figure>
     <div class="brushes" id="brushes" role="group" data-i18n-aria="brushesAria" aria-label="选择画笔颜色"></div>
     <p class="meta"><span id="readout"></span><span id="load-note" role="status"></span></p>
-    <p class="note" data-i18n="note">本图按自定义边界绘制：台湾（含钓鱼岛及其附属岛屿）、香港、澳门、藏南并入中国，含南海十段线；科索沃并入塞尔维亚；格陵兰并入丹麦；卢甘斯克、顿涅茨克、克里米亚（含塞瓦斯托波尔）并入俄罗斯。东西德分界线和西柏林边界来自 OpenHistoricalMap（1951–1990，CC0），二级行政区来自 geoBoundaries CGAZ（CC BY 4.0）。这些划分存在争议，不代表国际公认边界。底图来自 Natural Earth 1:10m（公有领域），第十段线的位置参考公开地图资料，只是近似。</p>
+    <p class="note" data-i18n="note">本图按自定义边界绘制：台湾（含钓鱼岛及其附属岛屿）、香港、澳门、藏南并入中国，含南海十段线；科索沃并入塞尔维亚；格陵兰、法罗群岛并入丹麦；卢甘斯克、顿涅茨克、克里米亚（含塞瓦斯托波尔）并入俄罗斯。东西德分界线和西柏林边界来自 OpenHistoricalMap（1951–1990，CC0），二级行政区来自 geoBoundaries CGAZ（CC BY 4.0）。这些划分存在争议，不代表国际公认边界。底图来自 Natural Earth 1:10m（公有领域），第十段线的位置参考公开地图资料，只是近似。</p>
   </div>
 
   <aside class="panel">
@@ -322,7 +322,7 @@ const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const FLAT = { w: 1000, h: 640 };
 const GLOBE_MAX = 10;
 const CORE_POINT = { DNK: [9.5, 56] };
-const INSET_LABELS = { DNK: [[[-42, 72], 'greenland']] };
+const INSET_LABELS = { DNK: [[[-42, 72], 'greenland'], [[-6.9, 62.1], 'faroe']] };
 const FLAT_MAX = 12;
 const HOME = { k: 1, x: 0, y: 0 };
 const DASHES = { type: 'MultiLineString', coordinates: META.dashes };
@@ -330,8 +330,8 @@ const DASHES = { type: 'MultiLineString', coordinates: META.dashes };
 const GDR = { type: 'MultiLineString', coordinates: META.gdr };
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 // configs saved before the borders changed still point at the old units
-const MIGRATE = { TWN: 'CHN', HKG: 'CHN', MAC: 'CHN', SCR: 'CHN', PGA: 'CHN', KOS: 'SRB', SOL: 'SOM', CYN: 'CYP', KAS: 'IND', KAB: 'KAZ', USG: 'CUB', GRL: 'DNK' };
-const ALIASES = { CHN: ['台湾', 'taiwan', '中华民国', '香港', 'hong kong', '澳门', 'macau', 'macao', '黄岩岛', '南沙群岛', '西沙群岛', '藏南', '阿鲁纳恰尔', '中华人民共和国'], SRB: ['科索沃', 'kosovo'], DNK: ['格陵兰', 'greenland'], SOM: ['索马里兰', 'somaliland'], CYP: ['北塞浦路斯'] };
+const MIGRATE = { TWN: 'CHN', HKG: 'CHN', MAC: 'CHN', SCR: 'CHN', PGA: 'CHN', KOS: 'SRB', SOL: 'SOM', CYN: 'CYP', KAS: 'IND', KAB: 'KAZ', USG: 'CUB', GRL: 'DNK', FRO: 'DNK' };
+const ALIASES = { CHN: ['台湾', 'taiwan', '中华民国', '香港', 'hong kong', '澳门', 'macau', 'macao', '黄岩岛', '南沙群岛', '西沙群岛', '藏南', '阿鲁纳恰尔', '中华人民共和国'], SRB: ['科索沃', 'kosovo'], DNK: ['格陵兰', 'greenland', '法罗群岛', '法罗', 'faroe islands', 'faroe', 'faroes', 'faeroe islands'], SOM: ['索马里兰', 'somaliland'], CYP: ['北塞浦路斯'] };
 
 const NAMES = {};
 const LOOKUP = new Map();
@@ -378,7 +378,8 @@ function normalize(o) {
     color: hex(c.color, '#59616e'),
     stripe: hex(c.stripe, '#d3d8e0'),
     ids: (Array.isArray(c.ids) ? c.ids : []).map(s => { const u = String(s).toUpperCase(); return MIGRATE[u] || u; }).filter(s => CODES.has(s) && !seen.has(s) && seen.add(s)),
-    regions: (Array.isArray(c.regions) ? c.regions : []).map(String).filter(r => /^[A-Z]{3}\//.test(r) && CODES.has(r.slice(0, 3)) && !seenR.has(r) && seenR.add(r))
+    // the Faroes used to be a unit of their own: their districts keep their ids, the single first-level region becomes DNK/FO
+    regions: (Array.isArray(c.regions) ? c.regions : []).map(String).map(r => !r.startsWith('FRO/') ? r : r.startsWith('FRO/2:') ? 'DNK' + r.slice(3) : 'DNK/FO').filter(r => /^[A-Z]{3}\//.test(r) && CODES.has(r.slice(0, 3)) && !seenR.has(r) && seenR.add(r))
   }));
   return {
     paper: hex(o.paper, SAMPLE.paper), ocean: hex(o.ocean, SAMPLE.ocean), base: hex(o.base, SAMPLE.base),
@@ -1080,9 +1081,9 @@ function requestDraw() {
   raf = requestAnimationFrame(() => { raf = 0; drawBase(); });
 }
 function resize() {
-  const r = sheet.getBoundingClientRect();
   const ratio = Math.min(window.devicePixelRatio || 1, 2);
-  const w = Math.max(1, Math.round(r.width - 2)), h = Math.max(1, Math.round(r.height - 2));
+  // the inner size, so the canvases match the box whatever border the sheet has
+  const w = Math.max(1, sheet.clientWidth), h = Math.max(1, sheet.clientHeight);
   if (w === size.w && h === size.h && ratio === size.ratio) return;
   size = { w, h, ratio };
   for (const c of [baseCanvas, hlCanvas, glCanvas]) { c.width = w * ratio; c.height = h * ratio; }
@@ -1390,6 +1391,9 @@ function largestPolygon(geom) {
   return best || geom;
 }
 const clusterCache = {};
+// territories that always get a cluster (an inset) of their own, as [west, south, east, north]: the Faroes would otherwise join
+// Greenland, whose size widens the allowed gap
+const OWN_CLUSTER = { DNK: [[-7.8, 61.3, -6.2, 62.5]] };
 // Single-link clustering: islands near each other stay together (Indonesia), far territories separate (French Guiana).
 function clustersOf(f) {
   if (clusterCache[f.id]) return clusterCache[f.id];
@@ -1399,7 +1403,8 @@ function clustersOf(f) {
     let r = 0;
     for (const p of coords[0]) { const d = d3.geoDistance(c, p); if (d > r) r = d; }
     const la = c[1] / DEG, lo = c[0] / DEG;
-    return { g, area: d3.geoArea(g), r, v: [Math.cos(la) * Math.cos(lo), Math.cos(la) * Math.sin(lo), Math.sin(la)] };
+    const own = (OWN_CLUSTER[f.id.slice(0, 3)] || []).findIndex(([w, s, e, n]) => c[0] >= w && c[0] <= e && c[1] >= s && c[1] <= n);
+    return { g, area: d3.geoArea(g), r, own, v: [Math.cos(la) * Math.cos(lo), Math.cos(la) * Math.sin(lo), Math.sin(la)] };
   });
   // the allowed gap grows with the country, so a small mainland is not shrunk by islands that a large one would absorb
   const biggest = items.reduce((a, b) => b.area > a.area ? b : a, items[0]);
@@ -1409,6 +1414,7 @@ function clustersOf(f) {
   for (let i = 0; i < items.length; i++) {
     for (let j = i + 1; j < items.length; j++) {
       const a = items[i], b = items[j];
+      if (a.own !== b.own) continue;
       const dot = Math.min(1, Math.max(-1, a.v[0] * b.v[0] + a.v[1] * b.v[1] + a.v[2] * b.v[2]));
       if (Math.acos(dot) - a.r - b.r <= gap) parent[find(i)] = find(j);
     }

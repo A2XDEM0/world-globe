@@ -1,5 +1,5 @@
 // Bundles one flag per map unit into dist/data/flags.json ({ "<unit id>": "<svg>" }), from flag-icons (MIT, 4:3).
-// Units follow the custom borders: Taiwan, Kosovo, Greenland and the other merged units have no flag of their own.
+// Units follow the custom borders: Taiwan, Kosovo, Greenland, the Faroes and the other merged units have no flag of their own.
 // Usage: node scripts/flags.mjs (after build.sh; reads work/names.json and the raw Natural Earth attributes)
 import fs from 'fs'; import path from 'path'; import { fileURLToPath } from 'url'; import { execFileSync } from 'child_process';
 const R = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'), W = R + '/work', FLAGS = R + '/node_modules/flag-icons/flags/4x3/';

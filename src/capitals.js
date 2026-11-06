@@ -209,7 +209,6 @@ const CAPITALS = {
   GGY: [-2.536,49.455,"Saint Peter Port"],
   IMN: [-4.48,54.15,"Douglas"],
   ALD: [19.949,60.097,"Mariehamn"],
-  FRO: [-6.82,62.03,"Tórshavn"],
   IOA: [105.678,-10.427,"Flying Fish Cove"],
   IOT: [72.411,-7.313,"Diego Garcia"],
   SGP: [103.854,1.295,"Singapore"],
