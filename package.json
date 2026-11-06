@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "可以按国家和行政区上色的世界地球",
   "private": true,
+  "author": "SlxBYR",
   "license": "GPL-3.0-only",
   "type": "module",
   "main": "desktop/main.mjs",
@@ -13,11 +14,13 @@
     "assemble": "node scripts/assemble.mjs",
     "serve": "node scripts/serve.mjs",
     "desktop": "node scripts/assemble.mjs && electron .",
-    "dist:mac": "node scripts/assemble.mjs && electron-builder --mac --arm64"
+    "dist:mac": "node scripts/assemble.mjs && electron-builder --mac --arm64",
+    "dist:win": "node scripts/assemble.mjs && electron-builder --win --x64"
   },
   "build": {
     "appId": "local.world-globe",
     "productName": "世界色彩地球",
+    "copyright": "Copyright © 2026 SlxBYR",
     "artifactName": "world-globe-${version}-${arch}.${ext}",
     "directories": {
       "output": "release"
@@ -56,6 +59,31 @@
     },
     "dmg": {
       "writeUpdateInfo": false
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "design/logo/kit/icon/AppIcon.ico"
+    },
+    "nsis": {
+      "artifactName": "world-globe-${version}-${arch}-setup.${ext}",
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "shortcutName": "世界色彩地球",
+      "differentialPackage": false
     }
   },
   "devDependencies": {

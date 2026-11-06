@@ -188,7 +188,8 @@ function buildMenu() {
     ? [...settings.recent.map(f => ({ label: path.basename(f), sublabel: path.dirname(f), click: () => openProject(f) })), { type: 'separator' }, { label: L('clearRecent'), click: () => { settings.recent = []; app.clearRecentDocuments(); writeSettings(); buildMenu(); } }]
     : [{ label: L('noRecent'), enabled: false }];
   Menu.setApplicationMenu(Menu.buildFromTemplate([
-    { role: 'appMenu', label: L('app') },
+    // the app menu only exists on macOS; elsewhere the window menu bar starts at File
+    ...(process.platform === 'darwin' ? [{ role: 'appMenu', label: L('app') }] : []),
     { label: L('file'), submenu: [
       { label: L('new'), accelerator: 'CmdOrCtrl+N', click: newProject },
       { label: L('open'), accelerator: 'CmdOrCtrl+O', click: () => openProject() },

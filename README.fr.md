@@ -2,7 +2,7 @@
 
 [简体中文](README.md) · [繁體中文](README.zh-Hant.md) · [English](README.en.md) · **Français** · [Русский](README.ru.md) · [Español](README.es.md)
 
-Un globe terrestre que l'on peut faire tourner et agrandir, et colorier par pays, par division de premier niveau (province, État) ou de second niveau (ville, comté). Un clic sur un pays ouvre sa carte à plat. Il existe une version web et une application de bureau pour macOS, qui partagent le même code. L'interface est disponible en chinois simplifié et en anglais ; les noms des boutons ci-dessous sont donnés en anglais.
+Un globe terrestre que l'on peut faire tourner et agrandir, et colorier par pays, par division de premier niveau (province, État) ou de second niveau (ville, comté). Un clic sur un pays ouvre sa carte à plat. Il existe une version web et une application de bureau pour macOS et Windows, qui partagent le même code. L'interface est disponible en chinois simplifié et en anglais ; les noms des boutons ci-dessous sont donnés en anglais.
 
 ![Vue du globe avec les couleurs d'exemple : Canada, Brésil, Mexique et d'autres pays coloriés](docs/images/globe.jpg)
 
@@ -90,7 +90,7 @@ npm run serve          # aperçu local : http://127.0.0.1:8765/wrap.html
 
 Si seuls des fichiers de `src/` ont changé, `npm run assemble` suffit ; il construit la page web et la page de bureau ensemble. Après une modification des règles de traitement des données, repartez de `npm run build`.
 
-Bureau : `npm run desktop` lance l'application, et `npm run dist:mac` produit un dmg et un zip pour Apple Silicon (environ 125 Mo chacun, dont 50 Mo de données) dans `release/`. L'application n'est pas encore signée ni notariée : la première fois qu'on l'ouvre sur un autre Mac, il faut faire un clic droit et choisir **Ouvrir**, ou l'autoriser dans **Réglages Système › Confidentialité et sécurité**.
+Bureau : `npm run desktop` lance l'application, et `npm run dist:mac` produit un dmg et un zip pour Apple Silicon (environ 125 Mo chacun, dont 50 Mo de données) dans `release/`. L'application n'est pas encore signée ni notariée : la première fois qu'on l'ouvre sur un autre Mac, il faut faire un clic droit et choisir **Ouvrir**, ou l'autoriser dans **Réglages Système › Confidentialité et sécurité**. `npm run dist:win` produit depuis un Mac la version Windows x64 : un installateur, `world-globe-1.0.0-x64-setup.exe` (environ 100 Mo), et un zip portable (environ 140 Mo). Elle n'est pas signée non plus : au premier lancement, SmartScreen la bloque ; cliquez sur **Informations complémentaires**, puis **Exécuter quand même**.
 
 Les captures du README sont produites par `node scripts/screenshots.mjs <globe|search|germany|blocs|dark>`, avec `npm run serve` lancé. Celle de l'application de bureau a été prise à la main.
 

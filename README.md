@@ -2,9 +2,9 @@
 
 **简体中文** · [繁體中文](README.zh-Hant.md) · [English](README.en.md) · [Français](README.fr.md) · [Русский](README.ru.md) · [Español](README.es.md)
 
-一个可以拖动旋转、缩放的世界地球，能按国家、一级行政区（省、州）或二级行政区（市、县）分别上色，点国家可以打开它的平面地图。有网页版和 macOS 桌面版，两者共用同一份前端代码。
+一个可以拖动旋转、缩放的世界地球，能按国家、一级行政区（省、州）或二级行政区（市、县）分别上色，点国家可以打开它的平面地图。有网页版和桌面版（macOS、Windows），两者共用同一份前端代码。
 
-An interactive globe for colouring countries, states and counties, with per-country flat maps, bloc overlays and a Chinese / English interface. Web build plus an Electron app for macOS.
+An interactive globe for colouring countries, states and counties, with per-country flat maps, bloc overlays and a Chinese / English interface. Web build plus an Electron app for macOS and Windows.
 
 ![地球视图：示例配色，涂了加拿大、巴西、墨西哥等国](docs/images/globe.jpg)
 
@@ -92,7 +92,7 @@ npm run serve          # 本地预览：http://127.0.0.1:8765/wrap.html
 
 只改了 `src/` 里的文件时，运行 `npm run assemble` 就够了，它会同时生成网页版和桌面版的页面。改了数据处理规则，要从 `npm run build` 开始重跑。
 
-桌面版：`npm run desktop` 直接启动，`npm run dist:mac` 打包 Apple Silicon 版的 dmg 和 zip（各约 125MB，其中 50MB 是地图数据），输出到 `release/`。目前还没有签名和公证，复制到别的 Mac 上第一次打开时，要右键选择“打开”，或者在“系统设置 › 隐私与安全性”里放行。
+桌面版：`npm run desktop` 直接启动，`npm run dist:mac` 打包 Apple Silicon 版的 dmg 和 zip（各约 125MB，其中 50MB 是地图数据），输出到 `release/`。目前还没有签名和公证，复制到别的 Mac 上第一次打开时，要右键选择“打开”，或者在“系统设置 › 隐私与安全性”里放行。`npm run dist:win` 在 Mac 上就能交叉打包 Windows x64 版，得到安装程序 `world-globe-1.0.0-x64-setup.exe`（约 100MB）和免安装的 zip（约 140MB）。Windows 版同样没有签名，第一次运行时 SmartScreen 会拦下，点“更多信息”再点“仍要运行”即可。
 
 README 里的截图由 `node scripts/screenshots.mjs <globe|search|germany|blocs|dark>` 生成，需要先运行 `npm run serve`。桌面版那张是手动截的。
 

@@ -89,3 +89,5 @@ Electron 版的拖动帧率（窗口 1440×960，地球画布 1062×666，比 Ch
 - **国旗**来自 flag-icons（MIT，4:3），`scripts/flags.mjs` 按 Natural Earth 的两位代码给 242 个地图单位配旗，合成一个 1.6 MB 的文件，1:10m 轮廓加载完后才加载。泽凯利亚和阿克罗蒂里用英国国旗；西撒哈拉和比尔泰维勒不显示国旗；已并入其他单位的地区没有单独的旗。页面说明里加了国旗来源。
 - **中英文**：界面文字在 `src/i18n.js`；国家名和一级行政区名用 Natural Earth 的中英文名，二级行政区只有原文名。语言选择记在本地，桌面版记在 `settings.json`，主进程据此重建菜单、改窗口标题和对话框。搜索框换成了自己的建议列表（可以用方向键和回车），中英文名和三位代码都能搜。
 - **验证**：`test/webgl.mjs` 新增 `blocs` 批次（莱比锡是北约加华约、汉诺威只有北约、华沙两者、莫斯科只有华约、格陵兰只有北约、日德兰欧盟加北约、奥斯陆只有北约、维也纳只有欧盟，都按 WebGL 画面的像素颜色判断；悬停读数、两种一键涂色、不结盟运动 120 面国旗、搜索列表）和 `i18n` 批次（英文界面、英文平面图标注、英文导出、切回中文）。`compare` 批次新增一个开着三个阵营的视图，WebGL 和 Canvas 的差异像素 0.05%。`test/desktop.mjs` 确认了英文菜单和标题。其余各批和原有测试都重跑通过。
+
+**Windows 版（2026-11-06）。** `npm run dist:win` 在 Mac 上用 electron-builder 交叉打包 Windows x64 版，不需要 Wine，输出 NSIS 安装程序（可选安装位置，按用户安装）和免安装的 zip。Windows 图标 `design/logo/kit/icon/AppIcon.ico` 从 macOS 图标的 1024 图生成：留 4.7% 边距、裁成圆角方形，包含 16 到 256 七个尺寸。菜单栏里的应用菜单（`appMenu`）只在 macOS 上加，Windows 的菜单从“文件”开始；沉浸标题栏本来就只在 macOS 上启用，Windows 用系统标题栏。package.json 补了作者和版权，exe 的公司名不再是 Electron 默认的 GitHub, Inc.。在 Mac 上检查过：exe 是 x86-64 的 PE 程序，图标和版本信息都写进去了，`resources/data` 的 415 个数据文件齐全；还没有在 Windows 真机上运行过。
