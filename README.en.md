@@ -103,7 +103,7 @@ npm run serve          # local preview: http://127.0.0.1:8765/wrap.html
 
 If you only changed files in `src/`, `npm run assemble` is enough; it builds the web page and the desktop page together. After changing the data processing rules, start again from `npm run build`.
 
-Desktop: `npm run desktop` starts the app, and `npm run dist:mac` packages an Apple Silicon dmg and zip (about 135 MB each, 59 MB of which is map data) into `release/`. The app is not yet signed or notarised; the first time you open a copy on another Mac, right-click it and choose **Open**, or allow it under **System Settings › Privacy & Security**. `npm run dist:win` cross-builds the Windows x64 version on a Mac: an installer, `world-globe-1.1.0-x64-setup.exe` (about 110 MB), and a portable zip (about 160 MB). It is not signed either, so SmartScreen stops it on first run; click **More info**, then **Run anyway**.
+Desktop: `npm run desktop` starts the app, and `npm run dist:mac` packages an Apple Silicon dmg and zip (about 195 MB each, 118 MB of which is map data) into `release/`. The app is not yet signed or notarised; the first time you open a copy on another Mac, right-click it and choose **Open**, or allow it under **System Settings › Privacy & Security**. `npm run dist:win` cross-builds the Windows x64 version on a Mac: an installer, `world-globe-1.2.0-x64-setup.exe` (about 170 MB), and a portable zip (about 220 MB). It is not signed either, so SmartScreen stops it on first run; click **More info**, then **Run anyway**.
 
 The README screenshots come from `node scripts/screenshots.mjs <globe|search|germany|blocs|dark|hypso>`, with `npm run serve` running. The desktop one was taken by hand.
 
