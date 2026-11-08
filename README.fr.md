@@ -46,9 +46,9 @@ La barre du haut bascule entre chinois et anglais : boutons, aides, noms de pays
 
 ### Teintes hypsométriques
 
-Cochez **Hypsometric tints** sous **Layers**, dans la barre de gauche : les terres non coloriées prennent la couleur de leur altitude et la mer celle de sa profondeur, avec une légende sous l'interrupteur. Neuf paliers pour les terres (limites à 200, 500, 1 000, 1 500, 2 000, 3 000, 4 000 et 5 000 m), huit pour la mer (200, 1 000, 2 000 … 6 000 m). Les couleurs restent douces, et les pays et divisions coloriés passent par-dessus comme d'habitude. Au survol, la ligne d'information indique aussi le palier d'altitude ou de profondeur.
+Cochez **Hypsometric tints** sous **Layers**, dans la barre de gauche : les terres non coloriées prennent la couleur de leur altitude et la mer celle de sa profondeur, avec une légende sous l'interrupteur. 57 paliers en tout, 34 pour les terres et 23 pour la mer. Ils sont plus fins près du niveau de la mer (tous les 50 m sous 200 m d'altitude et jusqu'à 100 m de profondeur), puis s'élargissent : tous les 200 à 500 m au-dessus de 1 000 m sur terre, et en mer jusqu'à 10 000 m. Les couleurs restent douces, et les pays et divisions coloriés passent par-dessus comme d'habitude. Au survol, la ligne d'information indique aussi le palier d'altitude ou de profondeur.
 
-L'altitude vient d'ETOPO 2022 (NOAA), à une minute d'arc, la résolution raster de la carte au 1:10m. Le globe commence avec une vue d'ensemble à quatre minutes d'arc ; dès qu'une de ses cellules couvrirait plus de deux pixels d'écran, la partie visible passe aux tuiles à une minute d'arc (15° × 15°, chargées à la demande), et les cartes à plat font de même. La limite entre terre et mer est toujours le trait de côte de la carte : les terres sous le niveau de la mer dans les données prennent le palier le plus bas, et les cellules côtières au-dessus du niveau de la mer le palier marin le moins profond. Les exports PNG et SVG incluent les teintes ; en SVG, c'est une image raster intégrée.
+L'altitude vient d'ETOPO 2022 (NOAA), à 30 secondes d'arc (environ 900 m), soit à peu près un pixel d'écran au zoom maximal du globe. Elle se présente en trois niveaux : le globe commence avec une vue d'ensemble à quatre minutes d'arc ; dès qu'une de ses cellules couvrirait plus de deux pixels d'écran, la partie visible passe aux tuiles à une minute d'arc (15° × 15°) ; dès qu'une cellule d'une minute couvrirait plus d'environ 1,3 pixel, aux tuiles à 30 secondes d'arc (7,5° × 7,5°). Les tuiles se chargent à la demande, et les cartes à plat font de même. La limite entre terre et mer est toujours le trait de côte de la carte : les terres sous le niveau de la mer dans les données prennent le palier le plus bas, et les cellules côtières au-dessus du niveau de la mer le palier marin le moins profond. Les exports PNG et SVG incluent les teintes ; en SVG, c'est une image raster intégrée.
 
 ![Teintes hypsométriques : Asie centrale, plateau tibétain et Himalaya, avec l'Inde coloriée en hachures bleues](docs/images/hypso.jpg)
 
@@ -84,18 +84,18 @@ Ce projet ne représente pas les frontières reconnues internationalement, ni la
 | Frontière interallemande, limite de Berlin-Ouest (1951–1990) | OpenHistoricalMap, relation 2692241 | CC0 |
 | Capitales (destination d'une recherche) | Natural Earth 1:10m, lieux peuplés, plus 19 petits territoires ajoutés à la main | Domaine public |
 | Drapeaux | flag-icons | MIT |
-| Altitude et profondeur (teintes hypsométriques) | NOAA ETOPO 2022, 60 secondes d'arc, surface des glaces | Domaine public |
+| Altitude et profondeur (teintes hypsométriques) | NOAA ETOPO 2022, 30 secondes d'arc, surface des glaces | Domaine public |
 | Position du dixième trait | D'après les géodonnées DataV d'Alibaba Cloud, approximative | Conditions non vérifiées |
 
 Les données cartographiques ne sont pas dans le dépôt ; les scripts ci-dessous les téléchargent et les construisent.
 
 ## Lancer et construire
 
-Il faut Node.js (développé avec la version 24) et environ 800 Mo d'espace disque. La première fois, lancez dans l'ordre :
+Il faut Node.js (développé avec la version 24) et environ 2,3 Go d'espace disque. La première fois, lancez dans l'ordre :
 
 ```sh
 npm install
-npm run fetch          # télécharge les données brutes dans raw/, environ 690 Mo
+npm run fetch          # télécharge les données brutes dans raw/, environ 1,8 Go
 npm run prepare-data   # construit les fichiers intermédiaires
 npm run build          # construit dist/data et dist/index.html, environ 20 s
 npm run serve          # aperçu local : http://127.0.0.1:8765/wrap.html
@@ -111,7 +111,7 @@ Les captures du README sont produites par `node scripts/screenshots.mjs <globe|s
 
 Le globe est dessiné en WebGL2 en projection orthographique, au 1:10m pendant le glissement comme au repos, à 60 images/s stables dans les trois tests de glissement ; sans WebGL2, le navigateur revient à Canvas 2D. Le survol est dessiné sur un calque Canvas 2D, et les cartes à plat sont en SVG pour s'exporter proprement. La lecture des données, l'enregistrement des fichiers et les réglages passent tous par `src/platform.js`, qui a une implémentation web et une de bureau. Bibliothèques : D3 7.9.0, TopoJSON et earcut 2.2.4.
 
-Les contours simplifiés des pays sont intégrés à la page. Les contours au 1:10m, les limites administratives et les données de premier niveau (210 fichiers) et de second niveau (201 fichiers) de chaque pays sont des fichiers séparés, chargés à l'ouverture du pays ; environ 50 Mo en tout. L'altitude des teintes est produite par `scripts/hypso.mjs` à partir d'ETOPO 2022 : chaque cellule devient un code de palier sur un octet, soit environ 1 Mo compressé pour la vue d'ensemble et environ 8 Mo pour les 288 tuiles à une minute d'arc. Le fragment shader du globe inverse la projection à sa propre position à l'écran pour trouver le palier ; les cartes à plat, le repli Canvas et les exports construisent leurs rasters sur le CPU avec la même inversion.
+Les contours simplifiés des pays sont intégrés à la page. Les contours au 1:10m, les limites administratives et les données de premier niveau (210 fichiers) et de second niveau (201 fichiers) de chaque pays sont des fichiers séparés, chargés à l'ouverture du pays ; environ 50 Mo en tout. L'altitude des teintes est produite par `scripts/hypso.mjs` à partir d'ETOPO 2022 : chaque cellule devient un code de palier sur un octet, soit environ 2 Mo compressé pour la vue d'ensemble, environ 18 Mo pour les 288 tuiles à une minute d'arc et environ 49 Mo pour les 1 152 tuiles à 30 secondes d'arc ; une génération prend environ trois minutes. Le fragment shader du globe inverse la projection à sa propre position à l'écran pour trouver le palier ; les cartes à plat, le repli Canvas et les exports construisent leurs rasters sur le CPU avec la même inversion.
 
 Les données sont traitées avec mapshaper. Étapes principales :
 

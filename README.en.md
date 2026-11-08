@@ -46,9 +46,9 @@ The top bar switches between Chinese and English. Buttons, hints, country and re
 
 ### Hypsometric tints
 
-Turn on **Hypsometric tints** under **Layers** in the left sidebar and unpainted land is coloured by elevation, the sea by depth, with a legend under the switch: nine land bands split at 200, 500, 1,000, 1,500, 2,000, 3,000, 4,000 and 5,000 m, eight sea bands split at 200, 1,000, 2,000 … 6,000 m. The colours are kept soft, and painted countries and regions sit on top as usual. Hovering over the map adds the elevation or depth band at that spot to the readout.
+Turn on **Hypsometric tints** under **Layers** in the left sidebar and unpainted land is coloured by elevation, the sea by depth, with a legend under the switch: 57 bands in all, 34 on land and 23 at sea. They are finest near sea level (every 50 m below 200 m on land and within 100 m at sea) and widen with height and depth: every 200 to 500 m above 1,000 m on land, and at sea down to 10,000 m. The colours are kept soft, and painted countries and regions sit on top as usual. Hovering over the map adds the elevation or depth band at that spot to the readout.
 
-The elevation is NOAA's ETOPO 2022 at one arc-minute, the raster resolution of the 1:10m map. The globe starts with a four-arc-minute overview; once an overview cell would span more than two screen pixels, the visible part switches to one-arc-minute tiles (15° × 15°, loaded as needed), and the flat maps do the same. The line between land and sea is always the map's own coastline: land below sea level in the data shows as the lowest land band, and coastal cells above sea level as the shallowest sea band. PNG and SVG exports include the tints; in SVG they are an embedded raster.
+The elevation is NOAA's ETOPO 2022 at 30 arc-seconds (about 900 m), about one screen pixel at the globe's highest zoom. It comes in three levels: the globe starts with a four-arc-minute overview; once an overview cell would span more than two screen pixels, the visible part switches to one-arc-minute tiles (15° × 15°); once a one-arc-minute cell would span more than about 1.3 pixels, to 30-arc-second tiles (7.5° × 7.5°). Tiles load as needed, and the flat maps do the same. The line between land and sea is always the map's own coastline: land below sea level in the data shows as the lowest land band, and coastal cells above sea level as the shallowest sea band. PNG and SVG exports include the tints; in SVG they are an embedded raster.
 
 ![Hypsometric tints: Central Asia, the Tibetan Plateau and the Himalaya, with India painted in blue stripes](docs/images/hypso.jpg)
 
@@ -84,18 +84,18 @@ This project does not represent internationally recognised borders, nor the offi
 | Inner German border, West Berlin boundary (1951–1990) | OpenHistoricalMap relation 2692241 | CC0 |
 | Capitals (where a search flies to) | Natural Earth 1:10m populated places, plus 19 small territories added by hand | Public domain |
 | Flags | flag-icons | MIT |
-| Elevation and depth (hypsometric tints) | NOAA ETOPO 2022, 60 arc-seconds, ice surface | Public domain |
+| Elevation and depth (hypsometric tints) | NOAA ETOPO 2022, 30 arc-seconds, ice surface | Public domain |
 | Position of the tenth dash | Based on Alibaba Cloud DataV geodata, approximate only | Terms not checked |
 
 The map data is not kept in the repository; the scripts below download and build it.
 
 ## Running and building
 
-You need Node.js (developed with version 24) and about 800 MB of disk space. The first time, run in order:
+You need Node.js (developed with version 24) and about 2.3 GB of disk space. The first time, run in order:
 
 ```sh
 npm install
-npm run fetch          # download the raw data into raw/, about 690 MB
+npm run fetch          # download the raw data into raw/, about 1.8 GB
 npm run prepare-data   # build the intermediate files
 npm run build          # build dist/data and dist/index.html, about 20 s
 npm run serve          # local preview: http://127.0.0.1:8765/wrap.html
@@ -111,7 +111,7 @@ The README screenshots come from `node scripts/screenshots.mjs <globe|search|ger
 
 The globe is drawn with WebGL2 in an orthographic projection, at 1:10m both while dragging and at rest, holding a steady 60 fps in all three drag tests; browsers without WebGL2 fall back to Canvas 2D. Hover highlights are drawn on a Canvas 2D layer, and flat maps are SVG so they export cleanly. Reading data, saving files and storing settings all go through `src/platform.js`, which has one implementation for the web and one for the desktop. Libraries: D3 7.9.0, TopoJSON and earcut 2.2.4.
 
-Simplified country outlines are embedded in the page. The 1:10m outlines, the region lines and each country's first-level (210 files) and second-level (201 files) data are separate files, loaded when a country is opened; about 50 MB in all. The elevation for the tints is made by `scripts/hypso.mjs` from ETOPO 2022: each cell becomes a one-byte band code, which compresses to about 1 MB for the overview and about 8 MB for the 288 one-arc-minute tiles. The globe's fragment shader inverts the projection at its own screen position and looks up the band; the flat maps, the Canvas fallback and the exports build their rasters on the CPU with the same inversion.
+Simplified country outlines are embedded in the page. The 1:10m outlines, the region lines and each country's first-level (210 files) and second-level (201 files) data are separate files, loaded when a country is opened; about 50 MB in all. The elevation for the tints is made by `scripts/hypso.mjs` from ETOPO 2022: each cell becomes a one-byte band code, which compresses to about 2 MB for the overview, about 18 MB for the 288 one-arc-minute tiles and about 49 MB for the 1,152 30-arc-second tiles; a run takes about three minutes. The globe's fragment shader inverts the projection at its own screen position and looks up the band; the flat maps, the Canvas fallback and the exports build their rasters on the CPU with the same inversion.
 
 The data is processed with mapshaper. The main steps:
 

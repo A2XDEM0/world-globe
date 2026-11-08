@@ -5,9 +5,9 @@
 // Projection and rotation follow d3.geoOrthographic().rotate([λ, φ, 0]) exactly, so the Canvas 2D overlay and picking line up.
 // Blocs are a second pass over the same meshes: stripes falling to the right, one bloc colour after another, in screen space.
 // Hypsometric tints: unpainted land and the sea take their colour from an elevation band per pixel. Each fragment finds its place
-// on the earth by inverting the projection at its own screen position, then reads the band from a one-arc-minute tile when one is
-// resident, else from the four-arc-minute overview; land and sea each keep to their own side of the colour table, so the coast
-// stays the map's own.
+// on the earth by inverting the projection at its own screen position, then reads the band from a 30-arc-second tile when one is
+// resident, else a one-arc-minute tile, else the four-arc-minute overview; land and sea each keep to their own side of the colour
+// table, so the coast stays the map's own.
 // Regions whose blocs differ from their country's (Greenland in the EU, the GDR in the Warsaw Pact) are cut out of the country's
 // stripes with the stencil buffer and striped on their own, so nothing has to be repainted and painted districts stay visible.
 const GlobeGL = (() => {
@@ -134,28 +134,35 @@ const GlobeGL = (() => {
 uniform mat3 uRot; uniform vec2 uCenter; uniform float uScale; uniform vec2 uView;
 vec2 screen(vec3 p) { return uCenter + uScale * vec2(p.y, -p.z); }
 vec4 clip(vec2 s) { return vec4(s.x / uView.x * 2.0 - 1.0, 1.0 - s.y / uView.y * 2.0, 0.0, 1.0); }`;
-  // elevation bands: codes 0–7 are sea depths, 8–16 land heights (scripts/hypso.mjs); a tile index of 0 means not resident
+  // elevation bands: codes below uSea are sea depths, the rest land heights (scripts/hypso.mjs). Two tile levels share one texture
+  // array; each has an index texture of layer + 1 per tile, 0 meaning not resident. uTiles/uTiles2 = columns, rows, degrees, pixels.
   const DEM = `
 uniform mat3 uRot; uniform vec2 uCenter; uniform float uScale; uniform float uHeight;
-uniform highp sampler2D uDem0; uniform highp sampler2DArray uDemT; uniform highp sampler2D uDemIdx; uniform highp sampler2D uLut;
-uniform vec2 uDem0Size; uniform vec4 uTiles;
+uniform highp sampler2D uDem0; uniform highp sampler2DArray uDemT; uniform highp sampler2D uDemIdx; uniform highp sampler2D uDemIdx2; uniform highp sampler2D uLut;
+uniform vec2 uDem0Size; uniform vec4 uTiles; uniform vec4 uTiles2; uniform int uSea;
 vec3 geoAt() {
   vec2 q = vec2(gl_FragCoord.x, uHeight - gl_FragCoord.y), s = (q - uCenter) / uScale;
   return vec3(sqrt(max(0.0, 1.0 - dot(s, s))), s.x, -s.y) * uRot;
 }
+// the code from one tile level, or -1 where that level's tile is not resident
+int tileCode(highp sampler2D idx, vec4 T, vec2 d) {
+  if (T.z <= 0.0) return -1;
+  vec2 t = d / T.z;
+  ivec2 ti = clamp(ivec2(floor(t)), ivec2(0), ivec2(T.xy) - 1);
+  int layer = int(texelFetch(idx, ti, 0).r * 255.0 + 0.5) - 1;
+  if (layer < 0) return -1;
+  return int(texelFetch(uDemT, ivec3(clamp(ivec2((t - vec2(ti)) * T.w), ivec2(0), ivec2(int(T.w) - 1)), layer), 0).r * 255.0 + 0.5);
+}
 int demCode(vec3 g) {
   vec2 d = vec2(degrees(atan(g.y, g.x)) + 180.0, 90.0 - degrees(asin(clamp(g.z, -1.0, 1.0))));
-  vec2 t = d / uTiles.z;
-  ivec2 ti = clamp(ivec2(floor(t)), ivec2(0), ivec2(uTiles.xy) - 1);
-  int layer = int(texelFetch(uDemIdx, ti, 0).r * 255.0 + 0.5) - 1;
-  float v;
-  if (layer >= 0) v = texelFetch(uDemT, ivec3(clamp(ivec2((t - vec2(ti)) * uTiles.w), ivec2(0), ivec2(int(uTiles.w) - 1)), layer), 0).r;
-  else v = texelFetch(uDem0, clamp(ivec2(d / vec2(360.0, 180.0) * uDem0Size), ivec2(0), ivec2(uDem0Size) - 1), 0).r;
-  return int(v * 255.0 + 0.5);
+  int c = tileCode(uDemIdx2, uTiles2, d);
+  if (c < 0) c = tileCode(uDemIdx, uTiles, d);
+  if (c < 0) c = int(texelFetch(uDem0, clamp(ivec2(d / vec2(360.0, 180.0) * uDem0Size), ivec2(0), ivec2(uDem0Size) - 1), 0).r * 255.0 + 0.5);
+  return c;
 }
 vec3 demColor(bool land) {
   int c = demCode(geoAt());
-  return texelFetch(uLut, ivec2(land ? max(c, 8) : min(c, 7), 0), 0).rgb;
+  return texelFetch(uLut, ivec2(land ? max(c, uSea) : min(c, uSea - 1), 0), 0).rgb;
 }`;
   const FILL_VS = HEAD + PROJECT + `
 in vec4 aPos; out float vDepth; flat out int vSlot;
@@ -313,10 +320,10 @@ void main() {
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     }
 
-    /* elevation: the overview, up to TILES one-arc-minute tiles in a texture array, the tile index and the colour table */
-    const TILES = 64;
-    const dem = { ready: false, w: 1, h: 1, tile: 900, cols: 24, rows: 12, deg: 15, layers: new Map(), array: false };
-    const demTex = { ov: gl.createTexture(), arr: gl.createTexture(), idx: gl.createTexture(), lut: gl.createTexture() };
+    /* elevation: the overview, up to TILES tiles of either level in one texture array, an index per level and the colour table */
+    const TILES = 80;
+    const dem = { ready: false, w: 1, h: 1, size: 900, levels: [], sea: 1, layers: new Map(), array: false };
+    const demTex = { ov: gl.createTexture(), arr: gl.createTexture(), idx: [gl.createTexture(), gl.createTexture()], lut: gl.createTexture() };
     const r8 = (tex, w, h, data) => {
       gl.bindTexture(gl.TEXTURE_2D, tex);
       gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
@@ -327,19 +334,20 @@ void main() {
     };
     // every sampler needs a texture of its own kind even while the tints are off
     r8(demTex.ov, 1, 1, new Uint8Array(1));
-    r8(demTex.idx, 1, 1, new Uint8Array(1));
+    for (const t of demTex.idx) r8(t, 1, 1, new Uint8Array(1));
     gl.bindTexture(gl.TEXTURE_2D_ARRAY, demTex.arr);
     gl.texImage3D(gl.TEXTURE_2D_ARRAY, 0, gl.R8, 1, 1, 1, 0, gl.RED, gl.UNSIGNED_BYTE, new Uint8Array(1));
     gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     gl.bindTexture(gl.TEXTURE_2D, demTex.lut);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
-    // { overview: Uint8Array of codes, w, h, tile: { size, deg, cols, rows }, colors: hex per code }; false if the GPU cannot hold it
+    // { overview: Uint8Array of codes, w, h, levels: [{ size, deg, cols, rows }] (coarse to fine, same size), colors: hex per code,
+    // sea: the first land code }; false if the GPU cannot hold it
     function setDem(d) {
       const max = gl.getParameter(gl.MAX_TEXTURE_SIZE);
-      if (d.w > max || d.h > max || d.tile.size > gl.getParameter(gl.MAX_TEXTURE_SIZE)) return false;
+      if (d.w > max || d.h > max || d.levels.some(L => L.size > max || L.size !== d.levels[0].size)) return false;
       r8(demTex.ov, d.w, d.h, d.overview);
-      Object.assign(dem, { w: d.w, h: d.h, tile: d.tile.size, deg: d.tile.deg, cols: d.tile.cols, rows: d.tile.rows, ready: true });
+      Object.assign(dem, { w: d.w, h: d.h, size: d.levels[0].size, levels: d.levels.slice(0, 2).map(L => ({ cols: L.cols, rows: L.rows, deg: L.deg })), sea: d.sea, ready: true });
       const lut = new Uint8Array(d.colors.length * 4);
       d.colors.forEach((h, i) => { hex(h, lut, i * 4); lut[i * 4 + 3] = 255; });
       gl.bindTexture(gl.TEXTURE_2D, demTex.lut);
@@ -351,23 +359,25 @@ void main() {
       return true;
     }
     function syncIndex() {
-      const idx = new Uint8Array(dem.cols * dem.rows);
-      for (const [key, layer] of dem.layers) { const [r, c] = key.split('-').map(Number); idx[r * dem.cols + c] = layer + 1; }
-      r8(demTex.idx, dem.cols, dem.rows, idx);
+      dem.levels.forEach((L, i) => {
+        const idx = new Uint8Array(L.cols * L.rows);
+        for (const q of dem.layers.values()) if (q.n === i + 1) idx[q.row * L.cols + q.col] = q.layer + 1;
+        r8(demTex.idx[i], L.cols, L.rows, idx);
+      });
     }
-    // the tiles that should be resident, nearest the view first, as [{ key: 'row-col', codes }]; others give up their layers
+    // the tiles that should be resident, most wanted first, as [{ key, n (level, 1 or 2), row, col, codes }]; others give up their layers
     function setTiles(list) {
       if (!dem.ready) return;
       list = list.slice(0, TILES);
       const want = new Set(list.map(q => q.key));
       let changed = false;
       for (const [key] of dem.layers) if (!want.has(key)) { dem.layers.delete(key); changed = true; }
-      const used = new Set(dem.layers.values());
+      const used = new Set([...dem.layers.values()].map(q => q.layer));
       for (const q of list) {
         if (dem.layers.has(q.key)) continue;
         if (!dem.array) {
           gl.bindTexture(gl.TEXTURE_2D_ARRAY, demTex.arr);
-          gl.texImage3D(gl.TEXTURE_2D_ARRAY, 0, gl.R8, dem.tile, dem.tile, TILES, 0, gl.RED, gl.UNSIGNED_BYTE, null);
+          gl.texImage3D(gl.TEXTURE_2D_ARRAY, 0, gl.R8, dem.size, dem.size, TILES, 0, gl.RED, gl.UNSIGNED_BYTE, null);
           dem.array = true;
         }
         let layer = 0;
@@ -375,9 +385,9 @@ void main() {
         used.add(layer);
         gl.bindTexture(gl.TEXTURE_2D_ARRAY, demTex.arr);
         gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
-        gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, 0, 0, 0, layer, dem.tile, dem.tile, 1, gl.RED, gl.UNSIGNED_BYTE, q.codes);
+        gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, 0, 0, 0, layer, dem.size, dem.size, 1, gl.RED, gl.UNSIGNED_BYTE, q.codes);
         gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
-        dem.layers.set(q.key, layer);
+        dem.layers.set(q.key, { layer, n: q.n, row: q.row, col: q.col });
         changed = true;
       }
       if (changed) syncIndex();
@@ -509,9 +519,13 @@ void main() {
         if (prog.u.uHeight) gl.uniform1f(prog.u.uHeight, H);
         if (prog.u.uR) gl.uniform1f(prog.u.uR, R);
         if (prog.u.uDem0) {
-          gl.uniform1i(prog.u.uDem0, 3); gl.uniform1i(prog.u.uDemT, 4); gl.uniform1i(prog.u.uDemIdx, 5); gl.uniform1i(prog.u.uLut, 6);
+          gl.uniform1i(prog.u.uDem0, 3); gl.uniform1i(prog.u.uDemT, 4); gl.uniform1i(prog.u.uDemIdx, 5); gl.uniform1i(prog.u.uLut, 6); gl.uniform1i(prog.u.uDemIdx2, 7);
           gl.uniform2f(prog.u.uDem0Size, dem.w, dem.h);
-          gl.uniform4f(prog.u.uTiles, dem.cols, dem.rows, dem.deg, dem.tile);
+          // a level that is not there has 0 degrees, which the shader skips
+          const T = i => dem.levels[i] ? [dem.levels[i].cols, dem.levels[i].rows, dem.levels[i].deg, dem.size] : [1, 1, 0, 1];
+          gl.uniform4f(prog.u.uTiles, ...T(0));
+          gl.uniform4f(prog.u.uTiles2, ...T(1));
+          gl.uniform1i(prog.u.uSea, dem.sea);
         }
       };
       target(W, H);
@@ -556,8 +570,9 @@ void main() {
       gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, colorTex);
       gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D, demTex.ov);
       gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_2D_ARRAY, demTex.arr);
-      gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D, demTex.idx);
+      gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D, demTex.idx[0]);
       gl.activeTexture(gl.TEXTURE6); gl.bindTexture(gl.TEXTURE_2D, demTex.lut);
+      gl.activeTexture(gl.TEXTURE7); gl.bindTexture(gl.TEXTURE_2D, demTex.idx[1]);
       common(ocean);
       gl.uniform1i(ocean.u.uHypso, s.hypso && dem.ready ? 1 : 0);
       gl.uniform1i(ocean.u.uA, 0);

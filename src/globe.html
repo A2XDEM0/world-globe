@@ -168,6 +168,7 @@ h1 { margin: 0; font-size: 22px; font-weight: 600; text-wrap: balance }
 .legend-bar, .legend-ticks { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr) }
 .legend-bar { height: 12px; border-radius: 6px; overflow: hidden; box-shadow: inset 0 0 0 1px rgb(31 41 55 / .08) }
 .legend-ticks { color: var(--muted); font-size: 10px; line-height: 1.3; font-variant-numeric: tabular-nums; white-space: nowrap }
+.legend-ticks span { min-width: 0 }
 /* brushes: one row per colour */
 .brushes { display: grid; gap: 8px }
 .chip { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 6px 14px 6px 8px; border: 0; border-radius: 16px; background: var(--field); color: var(--fg); font: inherit; text-align: left; cursor: pointer; transition: transform .2s var(--ease), box-shadow .2s var(--ease), background-color .2s var(--ease) }
@@ -963,42 +964,63 @@ function renderBlocs() {
 }
 
 /* ---- elevation: hypsometric tints ---- */
-// Bands from scripts/hypso.mjs (ETOPO 2022 at one arc-minute, the raster resolution of the 1:10m map): codes 0–7 are sea depths from
-// the deepest, 8–16 land heights from the lowest. Unpainted land takes a land colour and the sea a sea colour; where the grid and the
-// map's coast disagree, each side keeps to its own nearest band, so the coastline stays the map's. The four-arc-minute overview loads
-// when the tints are first switched on, one-arc-minute tiles as a view needs them. The colours stay soft and close in lightness.
-const HYPSO_BREAKS = [-6000, -5000, -4000, -3000, -2000, -1000, -200, 0, 200, 500, 1000, 1500, 2000, 3000, 4000, 5000];
-const HYPSO_COLORS = ['#97b1c7', '#a0b8cc', '#a9bfd1', '#b3c7d7', '#bdcfdc', '#c7d7e2', '#d2dfe8', '#dde7ed', '#cddcb7', '#dce4bc', '#e8e6c3', '#eadeb3', '#e4d1a6', '#dbc19a', '#d0b494', '#c9b6a8', '#ddd6d0'];
-const SEA_CODES = 8, TILE_CPU = 96, TILE_GPU = 64;
+// Bands from scripts/hypso.mjs (ETOPO 2022 at 30 arc-seconds, about 900 m): 57 codes, the sea depths (deepest first) below SEA_CODES,
+// then the land heights (lowest first). Three levels: a four-arc-minute overview of the whole globe, loaded when the tints are first
+// switched on; one-arc-minute tiles (15°) and 30-arc-second tiles (7.5°), each loaded once a view's pixels are fine enough to show
+// them. Unpainted land takes a land colour and the sea a sea colour; where the grid and the map's coast disagree, each side keeps to
+// its own nearest band, so the coastline stays the map's.
+const HYPSO_BREAKS = [-10000, -9000, -8000, -7000, -6500, -6000, -5500, -5000, -4500, -4000, -3500, -3000, -2500, -2000, -1500, -1000, -750, -500, -300, -200, -100, -50,
+  0, 50, 100, 150, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1200, 1400, 1600, 1800, 2000, 2250, 2500, 2750, 3000, 3250, 3500, 3750, 4000, 4250, 4500, 4750, 5000, 5500, 6000, 7000, 8000];
+const SEA_CODES = HYPSO_BREAKS.indexOf(0) + 1;
+// a band's edges in metres; null past the deepest and the highest edge
+const bandRange = c => [c > 0 ? HYPSO_BREAKS[c - 1] : null, c < HYPSO_BREAKS.length ? HYPSO_BREAKS[c] : null];
+// colours along height and depth, soft and close in lightness; each band takes the colour at its middle
+const HYPSO_LAND = [[0, '#cddcb7'], [200, '#d7e2ba'], [500, '#e3e6bf'], [1000, '#ebe2b6'], [1500, '#e8d6a8'], [2000, '#e0c79b'], [3000, '#d4b495'], [4000, '#c9ad9e'], [5000, '#d1c5bf'], [6000, '#e0d9d5'], [8000, '#ece8e5']];
+const HYPSO_SEA = [[0, '#e1eaf0'], [200, '#d5e3eb'], [1000, '#c8d9e5'], [2000, '#bccfdd'], [3000, '#b1c6d6'], [4000, '#a6bdd0'], [5000, '#9cb5ca'], [6000, '#93adc4'], [8000, '#88a3bc'], [10000, '#7f9ab4']];
+function rampAt(stops, v) {
+  let i = 1;
+  while (i < stops.length - 1 && v > stops[i][0]) i++;
+  const [a, ca] = stops[i - 1], [b, cb] = stops[i], f = clamp((v - a) / (b - a), 0, 1), x = rgb(ca), y = rgb(cb);
+  return '#' + x.map((q, k) => Math.round(q + (y[k] - q) * f).toString(16).padStart(2, '0')).join('');
+}
+const HYPSO_COLORS = Array.from({ length: HYPSO_BREAKS.length + 1 }, (_, c) => {
+  const [lo, hi] = bandRange(c);
+  if (c >= SEA_CODES) return rampAt(HYPSO_LAND, (lo + (hi ?? lo + 1000)) / 2);
+  const top = -hi, bottom = lo == null ? top + 1000 : -lo;
+  return rampAt(HYPSO_SEA, (top + bottom) / 2);
+});
 const LUT = HYPSO_COLORS.map(rgb);
-const DEM = { index: null, overview: null, tiles: new Map(), grid: [], ready: null, tick: 0, info: null };
+// tiles kept in memory per level, and how many of each the globe may ask the GPU to hold (80 layers in all)
+const TILE_CPU = [0, 64, 96], TILE_GPU = [0, 32, 48];
+const DEM = { index: null, overview: null, levels: [], tiles: new Map(), ready: null, tick: 0 };
 const inflate = buf => new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream('deflate'))).arrayBuffer().then(b => new Uint8Array(b));
 const hypsoOn = () => cfg.hypso && !!DEM.overview;
 function loadDem() {
   if (!DEM.ready) DEM.ready = (async () => {
     const ix = await platform.data('data/hypso/index.json');
+    if (ix.breaks.join() !== HYPSO_BREAKS.join()) throw new Error('bands');
     const ov = await inflate(await platform.bytes(`data/hypso/${ix.overview.file}`));
     if (ov.length !== ix.overview.w * ix.overview.h) throw new Error('overview');
     DEM.index = ix;
-    DEM.grid = new Array(ix.tiles.cols * ix.tiles.rows).fill(null);
+    DEM.levels = ix.levels.map((L, i) => ({ ...L, n: i + 1, grid: new Array(L.cols * L.rows).fill(null), info: null }));
     DEM.overview = ov;
     refreshMap();
   })().catch(() => { DEM.ready = null; say(t('hypsoFail')); });
   return DEM.ready;
 }
-// a tile's codes, or null while it loads (the load starts here); beyond TILE_CPU the least recently used are let go
-function demTile(row, col) {
-  const key = `${row}-${col}`, T = DEM.index.tiles;
+// a tile's codes, or null while it loads (the load starts here); beyond TILE_CPU per level the least recently used are let go
+function demTile(n, row, col) {
+  const L = DEM.levels[n - 1], key = `${n}:${row}-${col}`;
   let e = DEM.tiles.get(key);
   if (!e) {
-    e = { key, row, col, codes: null };
+    e = { key, n, row, col, codes: null };
     DEM.tiles.set(key, e);
-    e.promise = platform.bytes(`data/hypso/${T.dir}/${key}.bin`).then(inflate).then(codes => {
+    e.promise = platform.bytes(`data/hypso/${L.dir}/${row}-${col}.bin`).then(inflate).then(codes => {
       if (DEM.tiles.get(key) !== e) return null;
       e.codes = codes;
-      DEM.grid[row * T.cols + col] = codes;
-      const loaded = [...DEM.tiles.values()].filter(q => q.codes);
-      if (loaded.length > TILE_CPU) for (const q of loaded.sort((a, b) => a.used - b.used).slice(0, loaded.length - TILE_CPU)) { DEM.tiles.delete(q.key); DEM.grid[q.row * T.cols + q.col] = null; }
+      L.grid[row * L.cols + col] = codes;
+      const loaded = [...DEM.tiles.values()].filter(q => q.codes && q.n === n);
+      if (loaded.length > TILE_CPU[n]) for (const q of loaded.sort((a, b) => a.used - b.used).slice(0, loaded.length - TILE_CPU[n])) { DEM.tiles.delete(q.key); L.grid[q.row * L.cols + q.col] = null; }
       requestDraw();
       return codes;
     }, () => { DEM.tiles.delete(key); return null; });
@@ -1006,45 +1028,54 @@ function demTile(row, col) {
   e.used = ++DEM.tick;
   return e.codes;
 }
-// the band at a place: from its one-arc-minute tile when that is in, else from the overview
+// the band at a place: from the finest tile that is in, else from the overview
 function codeAt(lon, lat) {
-  const ix = DEM.index, T = ix.tiles, x = lon + 180, y = 90 - lat;
-  const col = clamp(Math.floor(x / T.deg), 0, T.cols - 1), row = clamp(Math.floor(y / T.deg), 0, T.rows - 1), codes = DEM.grid[row * T.cols + col];
-  if (codes) return codes[clamp(Math.floor((y / T.deg - row) * T.size), 0, T.size - 1) * T.size + clamp(Math.floor((x / T.deg - col) * T.size), 0, T.size - 1)];
-  const O = ix.overview;
+  const x = lon + 180, y = 90 - lat;
+  for (let i = DEM.levels.length - 1; i >= 0; i--) {
+    const L = DEM.levels[i], col = clamp(Math.floor(x / L.deg), 0, L.cols - 1), row = clamp(Math.floor(y / L.deg), 0, L.rows - 1), codes = L.grid[row * L.cols + col];
+    if (codes) return codes[clamp(Math.floor((y / L.deg - row) * L.size), 0, L.size - 1) * L.size + clamp(Math.floor((x / L.deg - col) * L.size), 0, L.size - 1)];
+  }
+  const O = DEM.index.overview;
   return DEM.overview[clamp(Math.floor(y / 180 * O.h), 0, O.h - 1) * O.w + clamp(Math.floor(x / 360 * O.w), 0, O.w - 1)];
 }
-// a band in words: 海拔 500–1000 米, 水深 6000 米以上
+// a band in words: 海拔 500–600 米, 水深 10000 米以上
 function bandText(code, land) {
-  const B = HYPSO_BREAKS, n = v => lang === 'en' ? v.toLocaleString('en') : String(v);
+  const n = v => lang === 'en' ? v.toLocaleString('en') : String(v), c = land ? Math.max(code, SEA_CODES) : Math.min(code, SEA_CODES - 1), [a, b] = bandRange(c);
   let lo, hi;
-  if (land) { const c = Math.max(code, SEA_CODES); lo = c > SEA_CODES ? B[c - 1] : null; hi = B[c] ?? null; }
-  else { const c = Math.min(code, SEA_CODES - 1); lo = -B[c] || 0; hi = c > 0 ? -B[c - 1] : null; }
+  if (land) { lo = c > SEA_CODES ? a : null; hi = b; }
+  else { lo = -b || 0; hi = a == null ? null : -a; }
   const r = lo == null ? t('bandBelow', { v: n(hi) }) : hi == null ? t('bandAbove', { v: n(lo) }) : t('bandRange', { a: n(lo), b: n(hi) });
   return t(land ? 'elev' : 'depth', { r });
 }
 const elevAt = (ll, land) => ll && hypsoOn() ? t('dot') + bandText(codeAt(ll[0], ll[1]), land) : '';
-function tileInfo() {
-  if (DEM.info) return DEM.info;
-  const T = DEM.index.tiles, out = [];
-  for (let row = 0; row < T.rows; row++) for (let col = 0; col < T.cols; col++) {
-    const w = col * T.deg - 180, n = 90 - row * T.deg, c = [w + T.deg / 2, n - T.deg / 2];
-    const r = Math.max(...[[w, n], [w + T.deg, n], [w, n - T.deg], [w + T.deg, n - T.deg]].map(q => d3.geoDistance(c, q)));
-    out.push({ row, col, key: `${row}-${col}`, c, r: r * 1.05 });
+function tileInfo(n) {
+  const L = DEM.levels[n - 1];
+  if (L.info) return L.info;
+  const out = [];
+  for (let row = 0; row < L.rows; row++) for (let col = 0; col < L.cols; col++) {
+    const w = col * L.deg - 180, top = 90 - row * L.deg, c = [w + L.deg / 2, top - L.deg / 2];
+    const r = Math.max(...[[w, top], [w + L.deg, top], [w, top - L.deg], [w + L.deg, top - L.deg]].map(q => d3.geoDistance(c, q)));
+    out.push({ n, row, col, key: `${n}:${row}-${col}`, c, r: r * 1.05 });
   }
-  return DEM.info = out;
+  return L.info = out;
 }
-// the tiles a globe view needs, nearest the centre first: only once a four-arc-minute cell would span more than two device pixels
+// the level a pixel of `a` arc-minutes needs: one-arc-minute tiles once a four-arc-minute cell would span more than two device
+// pixels, 30-arc-second tiles once a one-arc-minute cell would span more than about one and a third
+const levelsFor = a => DEM.levels.filter(L => a < (L.n === 1 ? 2 : .75)).map(L => L.n);
+// the tiles a globe view needs, finest level first, each nearest the centre first
 function globeTiles(ratio) {
   if (!DEM.index) return [];
-  if (21600 / (2 * Math.PI * globeScale(size.w, size.h, zoom) * ratio) > 2) return [];
-  const center = [-rot[0], -rot[1]], vis = visAngle(size.w, size.h, zoom), near = [];
-  for (const q of tileInfo()) { const d = d3.geoDistance(center, q.c); if (d - q.r <= vis) near.push([d, q]); }
-  return near.sort((a, b) => a[0] - b[0]).slice(0, TILE_GPU).map(([, q]) => q);
+  const a = 21600 / (2 * Math.PI * globeScale(size.w, size.h, zoom) * ratio), center = [-rot[0], -rot[1]], vis = visAngle(size.w, size.h, zoom), out = [];
+  for (const n of levelsFor(a).reverse()) {
+    const near = [];
+    for (const q of tileInfo(n)) { const d = d3.geoDistance(center, q.c); if (d - q.r <= vis) near.push([d, q]); }
+    out.push(...near.sort((x, y) => x[0] - y[0]).slice(0, TILE_GPU[n]).map(([, q]) => q));
+  }
+  return out;
 }
-const residentTiles = list => list.map(q => { const codes = demTile(q.row, q.col); return codes && { key: q.key, codes }; }).filter(Boolean);
+const residentTiles = list => list.map(q => { const codes = demTile(q.n, q.row, q.col); return codes && { key: q.key, n: q.n, row: q.row, col: q.col, codes }; }).filter(Boolean);
 async function tilesLoaded(list) {
-  list.forEach(q => demTile(q.row, q.col));
+  list.forEach(q => demTile(q.n, q.row, q.col));
   await Promise.all(list.map(q => DEM.tiles.get(q.key) && DEM.tiles.get(q.key).promise));
 }
 const toCanvas = img => { const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; c.getContext('2d').putImageData(img, 0, 0); return c; };
@@ -1080,42 +1111,55 @@ function flatRaster(proj, x0, y0, w, h, pw, ph) {
   }
   return toCanvas(img);
 }
-// the tiles a country map view needs, from a grid of points through the projection; none while a pixel spans two arc-minutes or more
+// the tiles a country map view needs, from a grid of points through the projection, at the levels its pixels call for
 function flatTiles(proj, x0, y0, w, h, pw) {
-  const T = DEM.index.tiles, mid = [x0 + w / 2, y0 + h / 2], step = w / pw * 10;
+  const mid = [x0 + w / 2, y0 + h / 2], step = w / pw * 10;
   const a = proj.invert(mid), b = proj.invert([mid[0] + step, mid[1]]);
-  if (!a || !b || d3.geoDistance(a, b) * DEG * 60 / 10 > 2) return [];
-  const found = new Map();
+  if (!a || !b) return [];
+  const levels = levelsFor(d3.geoDistance(a, b) * DEG * 60 / 10), found = new Map();
   for (let j = 0; j <= 30; j++) for (let i = 0; i <= 45; i++) {
     const ll = proj.invert([x0 + w * i / 45, y0 + h * j / 30]);
     if (!ll || !isFinite(ll[0]) || !isFinite(ll[1])) continue;
-    const col = clamp(Math.floor((ll[0] + 180) / T.deg), 0, T.cols - 1), row = clamp(Math.floor((90 - ll[1]) / T.deg), 0, T.rows - 1);
-    found.set(`${row}-${col}`, { row, col, key: `${row}-${col}` });
+    for (const n of levels) {
+      const L = DEM.levels[n - 1], col = clamp(Math.floor((ll[0] + 180) / L.deg), 0, L.cols - 1), row = clamp(Math.floor((90 - ll[1]) / L.deg), 0, L.rows - 1), key = `${n}:${row}-${col}`;
+      if (!found.has(key)) found.set(key, { n, row, col, key });
+    }
   }
-  return [...found.values()].slice(0, TILE_CPU);
+  const list = [...found.values()];
+  return levels.flatMap(n => list.filter(q => q.n === n).slice(0, TILE_CPU[n]));
 }
+// two bars, land and sea, one swatch per band; a few edges are written under them
 function renderLegend() {
   const box = $('hypso-legend');
   box.hidden = !cfg.hypso;
   box.textContent = '';
   if (!cfg.hypso) return;
-  const row = (name, codes, edges, land) => {
+  const row = (name, codes, edgeOf, marks, land) => {
     const r = document.createElement('div'), n = document.createElement('div'), bar = document.createElement('div'), ticks = document.createElement('div');
     r.className = 'legend-row'; n.className = 'legend-name'; bar.className = 'legend-bar'; ticks.className = 'legend-ticks';
     n.textContent = name;
+    // the labels sit in the same columns as the swatches
+    bar.style.gridTemplateColumns = ticks.style.gridTemplateColumns = `repeat(${codes.length}, minmax(0, 1fr))`;
     codes.forEach((c, i) => {
-      const sw = document.createElement('span'), tk = document.createElement('span');
+      const sw = document.createElement('span');
       sw.style.background = HYPSO_COLORS[c];
       sw.title = bandText(c, land).replace(/^\S+ /, '');
-      tk.textContent = edges[i];
       bar.append(sw);
-      ticks.append(tk);
+      const e = edgeOf(c);
+      if (marks.includes(e)) {
+        const tk = document.createElement('span');
+        tk.textContent = e;
+        tk.style.gridColumnStart = String(i + 1);
+        tk.style.gridRowStart = '1';
+        ticks.append(tk);
+      }
     });
     r.append(n, bar, ticks);
     box.append(r);
   };
-  row(t('legendLand'), [8, 9, 10, 11, 12, 13, 14, 15, 16], ['0', '200', '500', '1000', '1500', '2000', '3000', '4000', '5000'], true);
-  row(t('legendSea'), [7, 6, 5, 4, 3, 2, 1, 0], ['0', '200', '1000', '2000', '3000', '4000', '5000', '6000'], false);
+  const land = HYPSO_COLORS.map((_, c) => c).filter(c => c >= SEA_CODES), sea = HYPSO_COLORS.map((_, c) => c).filter(c => c < SEA_CODES).reverse();
+  row(t('legendLand'), land, c => bandRange(c)[0] ?? 0, [0, 500, 1000, 2000, 3000, 4000, 5000], true);
+  row(t('legendSea'), sea, c => -bandRange(c)[1] || 0, [0, 200, 1000, 3000, 6000, 10000], false);
 }
 
 /* ---- globe drawing ---- */
@@ -1291,7 +1335,7 @@ function showGlobeCanvases(on) {
 }
 function drawGL() {
   if (cfg.hypso && DEM.overview && !glDem) {
-    glDem = glView.setDem({ overview: DEM.overview, w: DEM.index.overview.w, h: DEM.index.overview.h, tile: DEM.index.tiles, colors: HYPSO_COLORS });
+    glDem = glView.setDem({ overview: DEM.overview, w: DEM.index.overview.w, h: DEM.index.overview.h, levels: DEM.levels, colors: HYPSO_COLORS, sea: SEA_CODES });
     glDirty = true;
   }
   const tinted = hypsoOn() && glDem;
@@ -1387,6 +1431,8 @@ function resize() {
   size = { w, h, ratio };
   for (const c of [baseCanvas, hlCanvas, glCanvas]) { c.width = w * ratio; c.height = h * ratio; }
   if (view === 'globe') drawBase();
+  // a country map shows more or less around its viewBox: labels and tints follow
+  else relabel();
 }
 new ResizeObserver(resize).observe(sheet);
 
@@ -1812,12 +1858,22 @@ function labelItems(regions, path, id, prefix = '', proj) {
   return items.sort((a, b) => b.area - a.area);
 }
 // the type keeps its size on screen, so zooming in lets more names fit
+// the part of the country map in view, in map units. When the sheet's shape differs from the map's (a tall sheet between two open
+// sidebars), the SVG shows more than its viewBox above and below, or left and right; that margin is in view too.
+function flatVisible() {
+  const svg = $('flat'), r = svg.getBoundingClientRect(), m = svg.isConnected && !svg.hasAttribute('hidden') ? svg.getScreenCTM() : null;
+  if (!m || r.width < 1 || r.height < 1) return { x: flatView.x, y: flatView.y, w: FLAT.w / flatView.k, h: FLAT.h / flatView.k, pw: FLAT.w, ph: FLAT.h };
+  const inv = m.inverse(), a = new DOMPoint(r.left, r.top).matrixTransform(inv), b = new DOMPoint(r.right, r.bottom).matrixTransform(inv);
+  return { x: a.x, y: a.y, w: b.x - a.x, h: b.y - a.y, pw: r.width, ph: r.height };
+}
 function placeLabels(ctx, v) {
   ctx.g.textContent = '';
   if (!cfg.labels) return;
-  const ts = cfg.labelSize, size = ts / v.k, x1 = v.x + FLAT.w / v.k, y1 = v.y + FLAT.h / v.k, placed = [];
+  // labels being built off screen keep to the viewBox; on screen they fill everything in view
+  const V = ctx.g.isConnected ? flatVisible() : { x: v.x, y: v.y, w: FLAT.w / v.k, h: FLAT.h / v.k };
+  const ts = cfg.labelSize, size = ts / v.k, x0 = V.x, y0 = V.y, x1 = V.x + V.w, y1 = V.y + V.h, placed = [];
   for (const it of ctx.items) {
-    if (it.cx < v.x || it.cx > x1 || it.cy < v.y || it.cy > y1) continue;
+    if (it.cx < x0 || it.cx > x1 || it.cy < y0 || it.cy > y1) continue;
     // widths were measured at the size in use when the map was built; scale them while the slider moves
     const w = it.tw * (ts / it.ts) / v.k;
     if (w > it.bw * .92 || size * 1.1 > it.bh * .85) continue;
@@ -1930,7 +1986,7 @@ async function buildFlat(id, node, view = HOME) {
     hypso
   };
   placeLabels(ctx, view);
-  if (scs) drawSeaInset(node, set, terrain ? HYPSO_COLORS[9] : fill);
+  if (scs) drawSeaInset(node, set, terrain ? HYPSO_COLORS[SEA_CODES + 4] : fill);
   const boxW = 136, boxH = 84, top = FLAT.h - 12 - boxH;
   insets.forEach((inset, i) => {
     const x = 24 + i * (boxW + 10);
@@ -1980,16 +2036,17 @@ function applyFlatView() {
   n.querySelectorAll('[data-dash]').forEach(p => p.setAttribute('stroke-dasharray', p.dataset.dash.split(' ').map(x => (x / v.k).toFixed(3)).join(' ')));
 }
 // the country map's tints for the part in view, at screen resolution; tiles come in first where a pixel is finer than the overview
-const flatViewKey = () => `${flatId}:${flatView.k}:${flatView.x}:${flatView.y}`;
+const flatViewKey = () => { const V = flatVisible(); return `${flatId}:${flatView.k}:${flatView.x}:${flatView.y}:${Math.round(V.pw)}x${Math.round(V.ph)}`; };
 let flatHypsoTimer = 0, flatHypsoToken = 0;
 function queueFlatHypso() { clearTimeout(flatHypsoTimer); flatHypsoTimer = setTimeout(renderFlatHypso, 120); }
 async function renderFlatHypso() {
   clearTimeout(flatHypsoTimer);
   const ctx = flatCtx, H = ctx && ctx.hypso;
   if (!H || view !== 'flat') return;
-  const token = ++flatHypsoToken, v = { ...flatView }, key = flatViewKey(), x0 = v.x, y0 = v.y, w = FLAT.w / v.k, h = FLAT.h / v.k;
-  const box = $('flat').getBoundingClientRect(), ratio = Math.min(window.devicePixelRatio || 1, 2);
-  const pw = clamp(Math.round(Math.min(box.width, box.height * FLAT.w / FLAT.h) * ratio), 200, 2000), ph = Math.round(pw * FLAT.h / FLAT.w);
+  // everything in view, not just the viewBox, at the sheet's own pixel size (at most 2000 px on the long side)
+  const token = ++flatHypsoToken, key = flatViewKey(), V = flatVisible(), x0 = V.x, y0 = V.y, w = V.w, h = V.h;
+  const ratio = Math.min(window.devicePixelRatio || 1, 2), k = Math.min(1, 2000 / (Math.max(V.pw, V.ph) * ratio));
+  const pw = Math.max(50, Math.round(V.pw * ratio * k)), ph = Math.max(50, Math.round(V.ph * ratio * k));
   const tiles = flatTiles(H.proj, x0, y0, w, h, pw);
   if (tiles.length) await tilesLoaded(tiles);
   if (token !== flatHypsoToken || flatCtx !== ctx) return;
@@ -2067,6 +2124,8 @@ async function renderFlat() {
   node.replaceChildren(...scratch.childNodes);
   flatCtx = info.ctx;
   applyFlatView();
+  // labels again, now that the map is on screen and its whole visible area is known
+  placeLabels(flatCtx, flatView);
   if (flatCtx.hypso) renderFlatHypso();
   const bits = [];
   if (info.insets) bits.push(t('flatInsets'));

@@ -270,25 +270,32 @@ try {
     const gl = BATCH === 'hypso';
     await p.evaluate(() => { cfg.graticule = false; $('t-hypso').click(); });
     await p.waitForFunction(gl => hypsoOn() && (!gl || glDem), { timeout: 10000 }, gl);
-    // the centre pixel against the band the data gives there, at the overview's scale and with one-arc-minute tiles in
-    const places = [['青藏高原', [88, 33], c => c >= 14, true], ['恒河三角洲', [90.4, 23.7], c => c <= 8, true], ['亚马孙平原', [-62, -4], c => c <= 8, true],
-      ['格陵兰冰盖', [-40, 72], c => c >= 13, true], ['马里亚纳海沟', [142.2, 11.35], c => c === 0, false], ['北海', [3, 55], c => c === 7, false], ['大西洋深海平原', [-40, 30], c => c <= 3, false]];
-    for (const [name, ll, ok, land] of places) for (const z of [1.2, 8]) {
+    // the centre pixel against the band the data gives there: with the overview (×1.2), one-arc-minute tiles (×3) and
+    // 30-arc-second tiles (×8); each place has a test on the band's edges in metres, [lower, upper] (null past the last edge)
+    const places = [['青藏高原', [88, 33], ([lo]) => lo >= 4500, true], ['恒河三角洲', [90.4, 23.7], ([, hi]) => hi <= 50, true], ['亚马孙平原', [-62, -4], ([, hi]) => hi <= 200, true],
+      ['格陵兰冰盖', [-40, 72], ([lo]) => lo >= 2500, true], ['马里亚纳海沟', [142.2, 11.35], ([, hi]) => hi <= -6000, false], ['北海', [3, 55], ([lo]) => lo >= -100, false], ['大西洋深海平原', [-40, 30], ([, hi]) => hi <= -3000, false]];
+    for (const [name, ll, ok, land] of places) for (const z of [1.2, 3, 8]) {
       await p.evaluate((ll, z) => centerOn(ll, z), ll, z);
-      if (z > 2) await p.waitForFunction(ll => { const T = DEM.index.tiles, k = `${Math.floor((90 - ll[1]) / T.deg)}-${Math.floor((ll[0] + 180) / T.deg)}`; return DEM.tiles.get(k) && DEM.tiles.get(k).codes; }, { timeout: 8000 }, ll);
+      const level = z > 6 ? 2 : z > 2 ? 1 : 0;
+      if (level) await p.waitForFunction((ll, n) => { const L = DEM.levels[n - 1], k = `${n}:${Math.floor((90 - ll[1]) / L.deg)}-${Math.floor((ll[0] + 180) / L.deg)}`; return DEM.tiles.get(k) && DEM.tiles.get(k).codes; }, { timeout: 8000 }, ll, level);
       await sleep(150);
-      const got = await p.evaluate((ll, land, gl) => {
+      const got = await p.evaluate((ll, land, gl, level) => {
         drawBase();
-        const code = codeAt(ll[0], ll[1]), want = HYPSO_COLORS[land ? Math.max(code, 8) : Math.min(code, 7)].slice(1);
-        const px = gl ? pixel(glImage(size.ratio), size.w * size.ratio / 2, size.h * size.ratio / 2) : pixel($('base'), size.w * size.ratio / 2, size.h * size.ratio / 2);
-        return { code, want, px, tiles: gl ? glView.stats.demTiles : DEM.tiles.size };
-      }, ll, land, gl);
-      check(`${name} ×${z}`, ok(got.code) && got.px === got.want && (z < 2 || got.tiles > 0), JSON.stringify(got));
+        // the band at the read pixel's own centre (half a pixel can cross into the next overview cell), from the level the view uses
+        const X = Math.round(size.w * size.ratio / 2), Y = Math.round(size.h * size.ratio / 2), at = globeProjection(size.w, size.h, rot).invert([(X + .5) / size.ratio, (Y + .5) / size.ratio]);
+        const O = DEM.index.overview, overview = q => DEM.overview[clamp(Math.floor((90 - q[1]) / 180 * O.h), 0, O.h - 1) * O.w + clamp(Math.floor((q[0] + 180) / 360 * O.w), 0, O.w - 1)];
+        const code = level ? codeAt(at[0], at[1]) : overview(at), c = land ? Math.max(code, SEA_CODES) : Math.min(code, SEA_CODES - 1), want = HYPSO_COLORS[c].slice(1);
+        const px = gl ? pixel(glImage(size.ratio), X, Y) : pixel($('base'), X, Y);
+        return { code, range: bandRange(c), want, px, tiles: gl ? glView.stats.demTiles : DEM.tiles.size };
+      }, ll, land, gl, level);
+      check(`${name} ×${z}`, ok(got.range) && got.px === got.want && (z < 2 || got.tiles > 0), JSON.stringify(got));
     }
     if (gl) {
-      // the whole Alps view: WebGL and the CPU raster (used by the Canvas fallback and the exports) agree pixel for pixel away from lines
-      await p.evaluate(() => centerOn([10, 46.3], 5));
-      await p.waitForFunction(() => globeTiles(1).every(q => DEM.tiles.get(q.key) && DEM.tiles.get(q.key).codes), { timeout: 10000 });
+      // the whole Alps view at ×9, where both use the 30-arc-second tiles: WebGL and the CPU raster (used by the Canvas fallback and
+      // the exports) agree pixel for pixel away from lines
+      await p.evaluate(() => centerOn([10, 46.3], 9));
+      await p.waitForFunction(() => globeTiles(size.ratio).every(q => DEM.tiles.get(q.key) && DEM.tiles.get(q.key).codes), { timeout: 10000 });
+      await sleep(200);
       const agree = await p.evaluate(() => {
         drawBase();
         const a = glImage(1), b = cvImage(1);
@@ -307,7 +314,7 @@ try {
         await p.mouse.move(cx + 2, cy); await p.mouse.move(cx, cy); await sleep(150);
         hover.push(await p.$eval('#readout', n => n.textContent));
       }
-      check('悬停显示海拔和水深', /海拔 \d/.test(hover[0]) && /^海洋 · 水深 0–200 米$/.test(hover[1]), hover.join(' | '));
+      check('悬停显示海拔和水深', /海拔 \d/.test(hover[0]) && /^海洋 · 水深 \d+–\d+ 米$/.test(hover[1]), hover.join(' | '));
       // exports
       await p.evaluate(() => centerOn([86, 28], 4));
       const svg = await p.evaluate(async () => { const s = await currentSvg(); return { images: (s.match(/<image /g) || []).length, clip: s.includes('<clipPath id="hypso-land">'), uses: (s.match(/<use /g) || []).length, png: (s.match(/data:image\/png;base64/g) || []).length, mb: +(s.length / 1e6).toFixed(1) }; });
@@ -318,15 +325,37 @@ try {
       // the country map: a raster clipped to the country, redrawn after zooming, with tiles where a pixel is finer than the overview
       await p.evaluate(() => openCountry('NPL'));
       await p.waitForFunction(() => flatCtx && flatCtx.hypso && flatCtx.hypso.done === flatViewKey(), { timeout: 10000 });
-      const flat1 = await p.evaluate(() => ({ href: flatCtx.hypso.img.getAttribute('href').length, tile: !!(DEM.tiles.get('4-17') && DEM.tiles.get('4-17').codes), labelInk: [...$('flat').querySelectorAll('text')].slice(0, 3).map(n => n.getAttribute('fill')).join() }));
+      const flat1 = await p.evaluate(() => ({ href: flatCtx.hypso.img.getAttribute('href').length, tile: ['1:4-17', '2:8-35'].every(k => DEM.tiles.get(k) && DEM.tiles.get(k).codes), labelInk: [...$('flat').querySelectorAll('text')].slice(0, 3).map(n => n.getAttribute('fill')).join() }));
       await p.evaluate(() => { const r = $('flat').getBoundingClientRect(); zoomFlat(4, r.left + r.width / 2, r.top + r.height / 2); });
       await p.waitForFunction(() => flatCtx.hypso.done === flatViewKey(), { timeout: 10000 });
       const flat2 = await p.evaluate(async () => ({ w: +flatCtx.hypso.img.getAttribute('width'), svg: (await currentSvg()).includes('data:image/png'), png: (await flatPng()).size }));
       check('平面图分层', flat1.href > 10000 && flat1.tile && flat1.labelInk.startsWith('#2a2b30') && Math.abs(flat2.w - 250) < 1 && flat2.svg && flat2.png > 100000, JSON.stringify({ flat1, flat2 }));
       await p.screenshot({ path: 'work/hypso-nepal.png', clip: { x: box.x, y: box.y, width: box.width, height: box.height } });
+      // a sheet taller than the map's 1000 × 640 shows more than the viewBox above and below: the raster must cover that too
+      // (Hokkaido used to be left as a bare outline there), and again after a sidebar folds and the sheet changes shape
+      await p.setViewport({ width: 1100, height: 1000 });
+      await p.evaluate(() => { openCountry('JPN'); });
+      await p.waitForFunction(() => flatCtx && flatCtx.hypso && flatCtx.hypso.done === flatViewKey(), { timeout: 10000 });
+      const cover = async () => {
+        await p.waitForFunction(() => flatCtx.hypso.done === flatViewKey(), { timeout: 10000 });
+        return p.evaluate(() => {
+          const V = flatVisible(), i = ['x', 'y', 'width', 'height'].map(a => +flatCtx.hypso.img.getAttribute(a)), hk = flatCtx.hypso.proj([142.5, 43.5]);
+          const near = (a, b) => Math.abs(a - b) < .5;
+          return { full: near(i[0], V.x) && near(i[1], V.y) && near(i[2], V.w) && near(i[3], V.h), beyond: V.y < flatView.y - 1, hokkaido: hk[1] >= i[1] && hk[1] <= i[1] + i[3], label: [...$('flat').querySelectorAll('text')].some(t => t.textContent === '北海道') };
+        });
+      };
+      await p.evaluate(() => { const r = $('flat').getBoundingClientRect(); zoomFlat(1.8, r.left + r.width / 2, r.top + r.height / 2); });
+      await sleep(300);
+      const tall = await cover();
+      await p.click('#left-toggle');
+      await sleep(600);
+      const folded = await cover();
+      await p.click('#left-toggle');
+      check('高窄地图区域的平面图分层', tall.full && tall.beyond && tall.hokkaido && tall.label && folded.full && folded.hokkaido, JSON.stringify({ tall, folded }));
+      await p.setViewport(null);
       await p.evaluate(() => closeCountry());
       const legend = await p.evaluate(() => ({ bars: [...document.querySelectorAll('#hypso-legend .legend-bar')].map(b => b.children.length).join(), title: document.querySelector('#hypso-legend .legend-bar span').title, saved: cfg.hypso }));
-      check('图例', legend.bars === '9,8' && legend.title === '200 米以下' && legend.saved, JSON.stringify(legend));
+      check('图例', legend.bars === '34,23' && legend.title === '50 米以下' && legend.saved, JSON.stringify(legend));
     }
   }
   r.renderer = await p.evaluate(() => renderer);

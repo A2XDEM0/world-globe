@@ -77,7 +77,7 @@ await launch([FILE], async (p, main) => {
   await p.evaluate(() => { rot = [-86.9, -28, 0]; zoom = 6; moving = false; drawBase(); });
   await p.waitForFunction('glView.stats.demTiles > 0', { timeout: 10000 });
   await sleep(700);
-  r.hypso = await p.evaluate(() => ({ tiles: glView.stats.demTiles, code: codeAt(88, 33) }));
+  r.hypso = await p.evaluate(() => ({ tiles: glView.stats.demTiles, lo: bandRange(codeAt(88, 33))[0] }));
   r.hypso.file = JSON.parse(fs.readFileSync(FILE, 'utf8')).hypso;
   // back to the whole globe for the exports below
   await p.evaluate(() => { rot = [60, -20, 0]; zoom = 1; moving = false; drawBase(); });
@@ -157,7 +157,7 @@ const pass = {
   nextLaunch: r.restored && r.restored.cats === 'JPN' && r.restored.leftShut && /^● /.test(r.titleRestored || '') && r.askedRun2 && r.askedRun2.length === 1 && r.reopened === 'DNK,BRA' && r.keptAfterOpen === false && r.run3 === 'DNK,BRA' && /旧项目/.test(r.titleRun3 || ''),
   noPrompts: r.askedRun1 && r.askedRun1.length === 0,
   csp: r.inlineScript && !r.inlineScript.ran && r.remoteFetch === 'blocked' && r.csp && r.csp.length === 0,
-  hypso: r.hypso && r.hypso.tiles > 0 && r.hypso.code === 16 && r.hypso.file === true && r.hypsoRun3 && r.hypsoRun3.on && r.hypsoRun3.box
+  hypso: r.hypso && r.hypso.tiles > 0 && r.hypso.lo >= 4500 && r.hypso.file === true && r.hypsoRun3 && r.hypsoRun3.on && r.hypsoRun3.box
 };
 console.log(JSON.stringify({ pass, r, errs, log: log.split('\n').filter(l => /error|Error/.test(l) && !/Debugger|inspector|DevTools/.test(l)).slice(0, 8) }, null, 1));
 console.log(Object.values(pass).every(Boolean) && !errs.length ? 'ALL PASS' : 'FAILED ' + Object.keys(pass).filter(k => !pass[k]).join(', '));
