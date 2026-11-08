@@ -103,7 +103,7 @@ npm run serve          # 本機預覽：http://127.0.0.1:8765/wrap.html
 
 只改了 `src/` 裡的檔案時，執行 `npm run assemble` 就夠了，它會同時產生網頁版和桌面版的頁面。改了資料處理規則，要從 `npm run build` 開始重跑。
 
-桌面版：`npm run desktop` 直接啟動，`npm run dist:mac` 打包 Apple Silicon 版的 dmg 和 zip（各約 125MB，其中 50MB 是地圖資料），輸出到 `release/`。目前還沒有簽署和公證，複製到別的 Mac 上第一次開啟時，要按右鍵選擇「打開」，或者在「系統設定 › 隱私權與安全性」裡放行。`npm run dist:win` 在 Mac 上就能交叉打包 Windows x64 版，得到安裝程式 `world-globe-1.0.0-x64-setup.exe`（約 100MB）和免安裝的 zip（約 140MB）。Windows 版同樣沒有簽署，第一次執行時 SmartScreen 會攔下，點「其他資訊」再點「仍要執行」即可。
+桌面版：`npm run desktop` 直接啟動，`npm run dist:mac` 打包 Apple Silicon 版的 dmg 和 zip（各約 135MB，其中 59MB 是地圖資料），輸出到 `release/`。目前還沒有簽署和公證，複製到別的 Mac 上第一次開啟時，要按右鍵選擇「打開」，或者在「系統設定 › 隱私權與安全性」裡放行。`npm run dist:win` 在 Mac 上就能交叉打包 Windows x64 版，得到安裝程式 `world-globe-1.1.0-x64-setup.exe`（約 110MB）和免安裝的 zip（約 160MB）。Windows 版同樣沒有簽署，第一次執行時 SmartScreen 會攔下，點「其他資訊」再點「仍要執行」即可。
 
 README 裡的截圖由 `node scripts/screenshots.mjs <globe|search|germany|blocs|dark|hypso>` 產生，需要先執行 `npm run serve`。桌面版那張是手動截的。
 
