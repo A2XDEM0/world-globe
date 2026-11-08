@@ -1,5 +1,5 @@
 // Takes the README screenshots into docs/images/, one shot per run so each browser stays under 30 s.
-// Usage: node scripts/screenshots.mjs <shot>, with `npm run serve` running; shots: globe, search, germany, blocs, dark.
+// Usage: node scripts/screenshots.mjs <shot>, with `npm run serve` running; shots: globe, search, germany, blocs, dark, hypso.
 // Each PNG is then turned into a 1600 px wide JPEG with macOS sips.
 import puppeteer from 'puppeteer-core'; import path from 'path'; import fs from 'fs'; import { fileURLToPath } from 'url'; import { execFileSync } from 'child_process';
 const R = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'), OUT = R + '/docs/images', shot = process.argv[2];
@@ -32,6 +32,13 @@ if (shot === 'search') {
   await p.evaluate(() => setLang('en'));
   await view([-105, -28, 0], 1.3);
   await sleep(1200);
+} else if (shot === 'hypso') {
+  // the blocs card folded away, so the legend under the switch shows
+  await p.evaluate(() => { $('t-hypso').click(); secs.blocs.querySelector('.sec-toggle').click(); });
+  await p.waitForFunction('hypsoOn() && glDem', { timeout: 10000 });
+  await view([-84, -31, 0], 2.6);
+  await p.waitForFunction('glView.stats.demTiles > 0', { timeout: 10000 });
+  await sleep(1500);
 } else await sleep(800);
 await p.mouse.move(1, 1);
 const png = `${OUT}/${shot}.png`;

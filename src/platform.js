@@ -1,10 +1,11 @@
-// Platform layer. The page reads data, saves files and keeps its config only through `platform`:
+// Platform layer. The page reads data (JSON, or raw bytes for the elevation bands), saves files and keeps its config only through `platform`:
 // the web build uses relative fetch, the Artifact downloads capability and localStorage; the desktop build uses
 // the interface the Electron preload exposes as window.globeHost (data comes over the app:// protocol, files through system dialogs,
 // the config lives in a .json project file).
 const platform = (() => {
   const STORE = 'world-globe-v1';
   const readJSON = path => fetch(path).then(r => { if (!r.ok) throw new Error(`${path}: ${r.status}`); return r.json(); });
+  const readBytes = path => fetch(path).then(r => { if (!r.ok) throw new Error(`${path}: ${r.status}`); return r.arrayBuffer(); });
   const host = window.globeHost;
   if (host) {
     const handlers = {};
@@ -14,6 +15,7 @@ const platform = (() => {
       // macOS: the window has no system title bar, the page draws the strip under the window controls
       titleBar: host.platform === 'darwin',
       data: readJSON,
+      bytes: readBytes,
       files: async () => ({
         async save({ filename, data }) {
           const bytes = typeof data === 'string' ? new TextEncoder().encode(data) : new Uint8Array(await data.arrayBuffer());
@@ -36,6 +38,7 @@ const platform = (() => {
     kind: 'web',
     titleBar: false,
     data: readJSON,
+    bytes: readBytes,
     files: async () => window.claude && window.claude.use ? window.claude.use('downloads') : null,
     config: {
       load() { try { const raw = localStorage.getItem(STORE); return raw ? JSON.parse(raw) : null; } catch (e) { return null; } },

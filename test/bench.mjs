@@ -1,6 +1,6 @@
 // Usage: node test/bench.mjs [url|electron] [cases], with `npm run serve` running (or `npm run assemble` for electron).
 // Opens a visible Chrome window (real GPU, Retina ratio), or the Electron build, and drags the globe for a few seconds per case.
-// Cases: plain, zoom5, admin (comma separated). One browser per case, so each stays under 30 s.
+// Cases: plain, zoom5, admin, hypso, hypso5 (hypsometric tints at zoom 1 and 5; comma separated). One browser per case, so each stays under 30 s.
 // UNCAPPED=1 turns off vsync and the frame cap, to see the headroom above 60 fps; CANVAS=1 forces the Canvas 2D globe.
 import puppeteer from 'puppeteer-core';
 import { spawn } from 'child_process';
@@ -31,13 +31,15 @@ for (const name of CASES) {
     await p.evaluateOnNewDocument(canvas => { try { localStorage.clear(); } catch (e) {} if (canvas) window.WG_FORCE_CANVAS = true; }, !!process.env.CANVAS);
     await go();
     await p.waitForFunction('DATA.hi && (typeof glReady === "undefined" || !glView || renderer.includes("1:10m"))', { timeout: 20000 });
-    const setup = { plain: {}, zoom5: { zoom: 5 }, admin: { admin: true } }[name];
+    const setup = { plain: {}, zoom5: { zoom: 5 }, admin: { admin: true }, hypso: { hypso: true }, hypso5: { hypso: true, zoom: 5 } }[name];
     await p.evaluate(s => {
       if (s.admin) { cfg.admin = true; syncBase(); ensureAdmin(); }
       if (s.zoom) zoom = s.zoom;
+      if (s.hypso) { cfg.hypso = true; syncBase(); }
       rot = [-10, -35, 0]; moving = false; drawBase(); setMeter(true);
     }, setup);
     if (setup.admin) await p.waitForFunction('DATA.adminHi', { timeout: 15000 });
+    if (setup.hypso) await p.waitForFunction('hypsoOn() && (!glView || glDem)', { timeout: 15000 });
     await sleep(600);
     out[name] = await p.evaluate(async ms => {
       const c = $('hl'), r = c.getBoundingClientRect(), y = r.top + r.height / 2;

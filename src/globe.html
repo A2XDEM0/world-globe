@@ -161,6 +161,13 @@ h1 { margin: 0; font-size: 22px; font-weight: 600; text-wrap: balance }
 .app:not(.editing) .is-off { display: none !important }
 .app.editing .sec.is-off { opacity: .55; box-shadow: inset 0 0 0 1.5px var(--line) }
 .app.editing .item.is-off > :not(.eye) { opacity: .4 }
+/* the elevation legend: one bar for the land, one for the sea, each band's lower edge under it */
+.legend { display: grid; gap: 10px; margin: 8px 0 2px 26px }
+.legend-row { display: grid; gap: 4px }
+.legend-name { color: var(--muted); font-size: 12px }
+.legend-bar, .legend-ticks { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr) }
+.legend-bar { height: 12px; border-radius: 6px; overflow: hidden; box-shadow: inset 0 0 0 1px rgb(31 41 55 / .08) }
+.legend-ticks { color: var(--muted); font-size: 10px; line-height: 1.3; font-variant-numeric: tabular-nums; white-space: nowrap }
 /* brushes: one row per colour */
 .brushes { display: grid; gap: 8px }
 .chip { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 6px 14px 6px 8px; border: 0; border-radius: 16px; background: var(--field); color: var(--fg); font: inherit; text-align: left; cursor: pointer; transition: transform .2s var(--ease), box-shadow .2s var(--ease), background-color .2s var(--ease) }
@@ -299,6 +306,7 @@ details > div { display: grid; gap: 10px; margin-top: 14px }
       </section>
 
       <section class="sec" data-sec="layers" data-title="layersTitle">
+        <div class="item" data-item="hypso"><label class="check"><input id="t-hypso" type="checkbox"><span data-i18n="tHypso">分层设色（海拔和水深）</span></label><div class="legend" id="hypso-legend" hidden></div></div>
         <div class="item" data-item="admin"><label class="check"><input id="t-admin" type="checkbox"><span data-i18n="tAdmin">显示行政区线</span></label></div>
         <div class="item" data-item="adm2"><label class="check"><input id="t-adm2" type="checkbox"><span data-i18n="tAdm2">平面图显示二级行政区线（市、县）</span></label></div>
         <div class="item" data-item="labels"><label class="check"><input id="t-labels" type="checkbox"><span data-i18n="tLabels">平面图显示行政区名称</span></label></div>
@@ -494,7 +502,7 @@ function normalize(o) {
   return {
     paper: hex(o.paper, SAMPLE.paper), ocean: hex(o.ocean, SAMPLE.ocean), base: hex(o.base, SAMPLE.base),
     blocs: (Array.isArray(o.blocs) ? o.blocs : []).filter((id, i, a) => BLOCS.some(b => b.id === id) && a.indexOf(id) === i),
-    admin: o.admin === true, labels: o.labels !== false, labelSize: clamp(Number(o.labelSize) || 10.5, 7, 20), graticule: o.graticule !== false, gdr: o.gdr !== false, adm2: o.adm2 === true, cats
+    admin: o.admin === true, labels: o.labels !== false, labelSize: clamp(Number(o.labelSize) || 10.5, 7, 20), graticule: o.graticule !== false, gdr: o.gdr !== false, adm2: o.adm2 === true, hypso: o.hypso === true, cats
   };
 }
 function load() {
@@ -954,6 +962,162 @@ function renderBlocs() {
   if (layout) decorateItems();
 }
 
+/* ---- elevation: hypsometric tints ---- */
+// Bands from scripts/hypso.mjs (ETOPO 2022 at one arc-minute, the raster resolution of the 1:10m map): codes 0–7 are sea depths from
+// the deepest, 8–16 land heights from the lowest. Unpainted land takes a land colour and the sea a sea colour; where the grid and the
+// map's coast disagree, each side keeps to its own nearest band, so the coastline stays the map's. The four-arc-minute overview loads
+// when the tints are first switched on, one-arc-minute tiles as a view needs them. The colours stay soft and close in lightness.
+const HYPSO_BREAKS = [-6000, -5000, -4000, -3000, -2000, -1000, -200, 0, 200, 500, 1000, 1500, 2000, 3000, 4000, 5000];
+const HYPSO_COLORS = ['#97b1c7', '#a0b8cc', '#a9bfd1', '#b3c7d7', '#bdcfdc', '#c7d7e2', '#d2dfe8', '#dde7ed', '#cddcb7', '#dce4bc', '#e8e6c3', '#eadeb3', '#e4d1a6', '#dbc19a', '#d0b494', '#c9b6a8', '#ddd6d0'];
+const SEA_CODES = 8, TILE_CPU = 96, TILE_GPU = 64;
+const LUT = HYPSO_COLORS.map(rgb);
+const DEM = { index: null, overview: null, tiles: new Map(), grid: [], ready: null, tick: 0, info: null };
+const inflate = buf => new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream('deflate'))).arrayBuffer().then(b => new Uint8Array(b));
+const hypsoOn = () => cfg.hypso && !!DEM.overview;
+function loadDem() {
+  if (!DEM.ready) DEM.ready = (async () => {
+    const ix = await platform.data('data/hypso/index.json');
+    const ov = await inflate(await platform.bytes(`data/hypso/${ix.overview.file}`));
+    if (ov.length !== ix.overview.w * ix.overview.h) throw new Error('overview');
+    DEM.index = ix;
+    DEM.grid = new Array(ix.tiles.cols * ix.tiles.rows).fill(null);
+    DEM.overview = ov;
+    refreshMap();
+  })().catch(() => { DEM.ready = null; say(t('hypsoFail')); });
+  return DEM.ready;
+}
+// a tile's codes, or null while it loads (the load starts here); beyond TILE_CPU the least recently used are let go
+function demTile(row, col) {
+  const key = `${row}-${col}`, T = DEM.index.tiles;
+  let e = DEM.tiles.get(key);
+  if (!e) {
+    e = { key, row, col, codes: null };
+    DEM.tiles.set(key, e);
+    e.promise = platform.bytes(`data/hypso/${T.dir}/${key}.bin`).then(inflate).then(codes => {
+      if (DEM.tiles.get(key) !== e) return null;
+      e.codes = codes;
+      DEM.grid[row * T.cols + col] = codes;
+      const loaded = [...DEM.tiles.values()].filter(q => q.codes);
+      if (loaded.length > TILE_CPU) for (const q of loaded.sort((a, b) => a.used - b.used).slice(0, loaded.length - TILE_CPU)) { DEM.tiles.delete(q.key); DEM.grid[q.row * T.cols + q.col] = null; }
+      requestDraw();
+      return codes;
+    }, () => { DEM.tiles.delete(key); return null; });
+  }
+  e.used = ++DEM.tick;
+  return e.codes;
+}
+// the band at a place: from its one-arc-minute tile when that is in, else from the overview
+function codeAt(lon, lat) {
+  const ix = DEM.index, T = ix.tiles, x = lon + 180, y = 90 - lat;
+  const col = clamp(Math.floor(x / T.deg), 0, T.cols - 1), row = clamp(Math.floor(y / T.deg), 0, T.rows - 1), codes = DEM.grid[row * T.cols + col];
+  if (codes) return codes[clamp(Math.floor((y / T.deg - row) * T.size), 0, T.size - 1) * T.size + clamp(Math.floor((x / T.deg - col) * T.size), 0, T.size - 1)];
+  const O = ix.overview;
+  return DEM.overview[clamp(Math.floor(y / 180 * O.h), 0, O.h - 1) * O.w + clamp(Math.floor(x / 360 * O.w), 0, O.w - 1)];
+}
+// a band in words: 海拔 500–1000 米, 水深 6000 米以上
+function bandText(code, land) {
+  const B = HYPSO_BREAKS, n = v => lang === 'en' ? v.toLocaleString('en') : String(v);
+  let lo, hi;
+  if (land) { const c = Math.max(code, SEA_CODES); lo = c > SEA_CODES ? B[c - 1] : null; hi = B[c] ?? null; }
+  else { const c = Math.min(code, SEA_CODES - 1); lo = -B[c] || 0; hi = c > 0 ? -B[c - 1] : null; }
+  const r = lo == null ? t('bandBelow', { v: n(hi) }) : hi == null ? t('bandAbove', { v: n(lo) }) : t('bandRange', { a: n(lo), b: n(hi) });
+  return t(land ? 'elev' : 'depth', { r });
+}
+const elevAt = (ll, land) => ll && hypsoOn() ? t('dot') + bandText(codeAt(ll[0], ll[1]), land) : '';
+function tileInfo() {
+  if (DEM.info) return DEM.info;
+  const T = DEM.index.tiles, out = [];
+  for (let row = 0; row < T.rows; row++) for (let col = 0; col < T.cols; col++) {
+    const w = col * T.deg - 180, n = 90 - row * T.deg, c = [w + T.deg / 2, n - T.deg / 2];
+    const r = Math.max(...[[w, n], [w + T.deg, n], [w, n - T.deg], [w + T.deg, n - T.deg]].map(q => d3.geoDistance(c, q)));
+    out.push({ row, col, key: `${row}-${col}`, c, r: r * 1.05 });
+  }
+  return DEM.info = out;
+}
+// the tiles a globe view needs, nearest the centre first: only once a four-arc-minute cell would span more than two device pixels
+function globeTiles(ratio) {
+  if (!DEM.index) return [];
+  if (21600 / (2 * Math.PI * globeScale(size.w, size.h, zoom) * ratio) > 2) return [];
+  const center = [-rot[0], -rot[1]], vis = visAngle(size.w, size.h, zoom), near = [];
+  for (const q of tileInfo()) { const d = d3.geoDistance(center, q.c); if (d - q.r <= vis) near.push([d, q]); }
+  return near.sort((a, b) => a[0] - b[0]).slice(0, TILE_GPU).map(([, q]) => q);
+}
+const residentTiles = list => list.map(q => { const codes = demTile(q.row, q.col); return codes && { key: q.key, codes }; }).filter(Boolean);
+async function tilesLoaded(list) {
+  list.forEach(q => demTile(q.row, q.col));
+  await Promise.all(list.map(q => DEM.tiles.get(q.key) && DEM.tiles.get(q.key).promise));
+}
+const toCanvas = img => { const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; c.getContext('2d').putImageData(img, 0, 0); return c; };
+// land and sea tints for a globe view, one value per device pixel, through the inverse projection the WebGL shader uses
+function globeRasters(w, h, ratio, rotate, z) {
+  const W = Math.round(w * ratio), H = Math.round(h * ratio), s = globeScale(w, h, z) * ratio, cx = W / 2, cy = H / 2;
+  const l = rotate[0] / DEG, p = rotate[1] / DEG, cl = Math.cos(l), sl = Math.sin(l), cp = Math.cos(p), sp = Math.sin(p);
+  const land = new ImageData(W, H), sea = new ImageData(W, H), L = land.data, S = sea.data;
+  for (let y = 0; y < H; y++) {
+    const sy = (y + .5 - cy) / s;
+    for (let x = 0; x < W; x++) {
+      const sx = (x + .5 - cx) / s, d = sx * sx + sy * sy;
+      if (d > 1) continue;
+      // the point on the sphere seen from here, turned back by the rotation (the transpose of globe-gl.js's matrix)
+      const px = Math.sqrt(1 - d), pz = -sy;
+      const gx = cp * cl * px + sl * sx + sp * cl * pz, gy = -cp * sl * px + cl * sx - sp * sl * pz, gz = -sp * px + cp * pz;
+      const code = codeAt(Math.atan2(gy, gx) * DEG, Math.asin(clamp(gz, -1, 1)) * DEG);
+      const i = (y * W + x) * 4, a = LUT[Math.max(code, SEA_CODES)], b = LUT[Math.min(code, SEA_CODES - 1)];
+      L[i] = a[0]; L[i + 1] = a[1]; L[i + 2] = a[2]; L[i + 3] = 255;
+      S[i] = b[0]; S[i + 1] = b[1]; S[i + 2] = b[2]; S[i + 3] = 255;
+    }
+  }
+  return { land: toCanvas(land), sea: toCanvas(sea) };
+}
+// land tints for part of a country map, through the map's own projection
+function flatRaster(proj, x0, y0, w, h, pw, ph) {
+  const img = new ImageData(pw, ph), D = img.data, sx = w / pw, sy = h / ph;
+  for (let j = 0; j < ph; j++) for (let i = 0; i < pw; i++) {
+    const ll = proj.invert([x0 + (i + .5) * sx, y0 + (j + .5) * sy]);
+    if (!ll || !isFinite(ll[0]) || !isFinite(ll[1])) continue;
+    const c = LUT[Math.max(codeAt(ll[0], ll[1]), SEA_CODES)], k = (j * pw + i) * 4;
+    D[k] = c[0]; D[k + 1] = c[1]; D[k + 2] = c[2]; D[k + 3] = 255;
+  }
+  return toCanvas(img);
+}
+// the tiles a country map view needs, from a grid of points through the projection; none while a pixel spans two arc-minutes or more
+function flatTiles(proj, x0, y0, w, h, pw) {
+  const T = DEM.index.tiles, mid = [x0 + w / 2, y0 + h / 2], step = w / pw * 10;
+  const a = proj.invert(mid), b = proj.invert([mid[0] + step, mid[1]]);
+  if (!a || !b || d3.geoDistance(a, b) * DEG * 60 / 10 > 2) return [];
+  const found = new Map();
+  for (let j = 0; j <= 30; j++) for (let i = 0; i <= 45; i++) {
+    const ll = proj.invert([x0 + w * i / 45, y0 + h * j / 30]);
+    if (!ll || !isFinite(ll[0]) || !isFinite(ll[1])) continue;
+    const col = clamp(Math.floor((ll[0] + 180) / T.deg), 0, T.cols - 1), row = clamp(Math.floor((90 - ll[1]) / T.deg), 0, T.rows - 1);
+    found.set(`${row}-${col}`, { row, col, key: `${row}-${col}` });
+  }
+  return [...found.values()].slice(0, TILE_CPU);
+}
+function renderLegend() {
+  const box = $('hypso-legend');
+  box.hidden = !cfg.hypso;
+  box.textContent = '';
+  if (!cfg.hypso) return;
+  const row = (name, codes, edges, land) => {
+    const r = document.createElement('div'), n = document.createElement('div'), bar = document.createElement('div'), ticks = document.createElement('div');
+    r.className = 'legend-row'; n.className = 'legend-name'; bar.className = 'legend-bar'; ticks.className = 'legend-ticks';
+    n.textContent = name;
+    codes.forEach((c, i) => {
+      const sw = document.createElement('span'), tk = document.createElement('span');
+      sw.style.background = HYPSO_COLORS[c];
+      sw.title = bandText(c, land).replace(/^\S+ /, '');
+      tk.textContent = edges[i];
+      bar.append(sw);
+      ticks.append(tk);
+    });
+    r.append(n, bar, ticks);
+    box.append(r);
+  };
+  row(t('legendLand'), [8, 9, 10, 11, 12, 13, 14, 15, 16], ['0', '200', '500', '1000', '1500', '2000', '3000', '4000', '5000'], true);
+  row(t('legendSea'), [7, 6, 5, 4, 3, 2, 1, 0], ['0', '200', '1000', '2000', '3000', '4000', '5000', '6000'], false);
+}
+
 /* ---- globe drawing ---- */
 const SPHERE = { type: 'Sphere' };
 const GRATICULE = d3.geoGraticule().step([15, 15])();
@@ -1003,7 +1167,7 @@ function hatchPattern(ctx, c, ratio) {
   p.setTransform(new DOMMatrix().scale(1 / ratio));
   return p;
 }
-function drawGlobe(ctx, { w, h, ratio, set, admin, rotate, seal, z }) {
+function drawGlobe(ctx, { w, h, ratio, set, admin, rotate, seal, z, tints }) {
   const p = globeProjection(w, h, rotate, z);
   const vis = visAngle(w, h, z), fine = z > 1.5;
   const path = d3.geoPath(p, ctx);
@@ -1012,6 +1176,9 @@ function drawGlobe(ctx, { w, h, ratio, set, admin, rotate, seal, z }) {
   ctx.fillStyle = cfg.paper;
   ctx.fillRect(0, 0, w, h);
   ctx.beginPath(); path(SPHERE); ctx.fillStyle = cfg.ocean; ctx.fill();
+  // the tints are device-pixel rasters; the sea one is empty outside the disc
+  const raster = img => { ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(img, 0, 0); ctx.restore(); };
+  if (tints) raster(tints.sea);
   if (cfg.graticule) {
     ctx.beginPath(); path(GRATICULE);
     ctx.strokeStyle = 'rgba(0,0,0,.06)'; ctx.lineWidth = .5; ctx.stroke();
@@ -1025,6 +1192,15 @@ function drawGlobe(ctx, { w, h, ratio, set, admin, rotate, seal, z }) {
     groups.get(c).push(f);
   }
   for (const [c, items] of groups) {
+    if (!c && tints) {
+      ctx.save();
+      ctx.beginPath();
+      for (const f of items) path(fine ? visiblePolys(f, center, vis) : f);
+      ctx.clip();
+      raster(tints.land);
+      ctx.restore();
+      continue;
+    }
     const style = !c ? cfg.base : c.style === 'stripes' ? hatchPattern(ctx, c, ratio) : c.color;
     ctx.beginPath();
     for (const f of items) path(fine ? visiblePolys(f, center, vis) : f);
@@ -1082,8 +1258,10 @@ function drawBase() {
     noteFrame(t0, performance.now() - t0);
     return;
   }
+  // the tints cost a pass over every pixel, so a turning globe goes without them
+  if (hypsoOn()) residentTiles(globeTiles(size.ratio));
   drawGlobe(baseCtx, {
-    w: size.w, h: size.h, ratio: size.ratio, rotate: rot, z: zoom,
+    w: size.w, h: size.h, ratio: size.ratio, rotate: rot, z: zoom, tints: hypsoOn() && !moving ? globeRasters(size.w, size.h, size.ratio, rot, zoom) : null,
     set: useHi ? DATA.hi : DATA.lo,
     admin: cfg.admin ? (useHi ? DATA.adminHi || DATA.adminLo : DATA.adminLo || DATA.adminHi) : null,
     seal: false
@@ -1099,8 +1277,9 @@ let glView = null;
 let glReady = false;
 let glHi = null;
 let glCuts = new Set();
+let glDem = false;
 const glColorOf = key => {
-  if (!key.includes('/')) return { ...(assign.get(key) || { color: cfg.base, style: 'solid' }), blocs: blocColors(blocsOfUnit(key)) };
+  if (!key.includes('/')) return { ...(assign.get(key) || { color: cfg.base, style: hypsoOn() && glDem ? 'terrain' : 'solid' }), blocs: blocColors(blocsOfUnit(key)) };
   const own = regionAssign.get(key), cut = glCuts.has(key);
   if (!own && !cut) return null;
   return { ...(own || {}), cut, blocs: cut ? blocColors(blocsOfRegion(key.slice(0, 3), key.slice(4))) : [] };
@@ -1111,6 +1290,12 @@ function showGlobeCanvases(on) {
   hlCanvas.hidden = !on;
 }
 function drawGL() {
+  if (cfg.hypso && DEM.overview && !glDem) {
+    glDem = glView.setDem({ overview: DEM.overview, w: DEM.index.overview.w, h: DEM.index.overview.h, tile: DEM.index.tiles, colors: HYPSO_COLORS });
+    glDirty = true;
+  }
+  const tinted = hypsoOn() && glDem;
+  if (tinted) glView.setTiles(residentTiles(globeTiles(size.ratio)));
   if (glDirty) {
     for (const key of regionAssign.keys()) {
       const rest = key.slice(4), level = rest.startsWith('2:') ? 2 : 1, shapes = regionShapes(key.slice(0, 3), level);
@@ -1123,10 +1308,11 @@ function drawGL() {
     glDirty = false;
   }
   if (cfg.admin) glView.setLines('admin', DATA.adminHi || DATA.adminLo || null);
-  glView.draw({ w: size.w, h: size.h, ratio: size.ratio, rotate: rot, scale: globeScale(size.w, size.h, zoom), paper: cfg.paper, ocean: cfg.ocean, graticule: cfg.graticule, admin: cfg.admin, gdr: cfg.gdr });
+  glView.draw({ w: size.w, h: size.h, ratio: size.ratio, rotate: rot, scale: globeScale(size.w, size.h, zoom), paper: cfg.paper, ocean: cfg.ocean, graticule: cfg.graticule, admin: cfg.admin, gdr: cfg.gdr, hypso: tinted });
 }
 function startGL() {
   if (window.WG_FORCE_CANVAS) return;
+  glDem = false;
   try { glView = GlobeGL.create(glCanvas); } catch (e) { glView = null; }
   if (!glView) return;
   const view0 = glView;
@@ -1389,12 +1575,11 @@ function hoverRegionAt(id, ll) {
   const level = paintLevel;
   setFocusMesh(id, level);
   regionAt(id, level, ll).then(({ f }) => {
-    if (highlight !== id || level !== paintLevel || hoverRegion === f) return;
-    hoverRegion = f;
-    drawOverlay();
+    if (highlight !== id || level !== paintLevel) return;
+    if (hoverRegion !== f) { hoverRegion = f; drawOverlay(); }
     if (!f) return;
     const key = regionKey(id, level, f), c = regionAssign.get(key) || assign.get(id);
-    setReadout(`${regionName(f.properties)}${t('paren', { s: codeOf(key) })}${t('dot')}${nameOf(id)}${t('dot')}${c ? c.name : t('unpainted')}`, id);
+    setReadout(`${regionName(f.properties)}${t('paren', { s: codeOf(key) })}${t('dot')}${nameOf(id)}${t('dot')}${c ? c.name : t('unpainted')}${elevAt(ll, true)}`, id);
   });
 }
 let hoverRaf = 0;
@@ -1404,18 +1589,21 @@ function queueHover(x, y) {
   hoverRaf = requestAnimationFrame(() => {
     hoverRaf = 0;
     if (!hoverXY || gesturing) return;
-    const id = pickAt(...hoverXY);
+    const [x, y] = hoverXY, id = pickAt(x, y), inside = Math.hypot(x - size.w / 2, y - size.h / 2) <= globeScale(size.w, size.h, zoom);
     hlCanvas.classList.toggle('over', !!id);
-    if (id !== highlight) { hoverRegion = null; setHighlight(id); showCountry(id); }
+    if (id !== highlight) { hoverRegion = null; setHighlight(id); if (!id) showHint(); }
     if (id && paintLevel > 0) hoverRegionAt(id, lastLL);
+    else if (id) showCountry(id, lastLL);
+    // over the sea, the depth
+    else if (inside && hypsoOn() && lastLL) setReadout(t('sea') + elevAt(lastLL, false));
   });
 }
 function setHighlight(id) { highlight = id; drawOverlay(); }
-function showCountry(id) {
+function showCountry(id, ll) {
   if (!id) return showHint();
   const c = assign.get(id);
   const blocs = blocsOfUnit(id).map(b => b[lang]);
-  setReadout(`${nameOf(id)}${t('dot')}${c ? c.name : t('unpainted')}${blocs.length ? t('dot') + t('memberOf', { list: blocs.join(t('sep')) }) : ''}`, id);
+  setReadout(`${nameOf(id)}${t('dot')}${c ? c.name : t('unpainted')}${blocs.length ? t('dot') + t('memberOf', { list: blocs.join(t('sep')) }) : ''}${elevAt(ll, true)}`, id);
 }
 function showHint() {
   $('readout').textContent = view === 'flat' ? flatHint
@@ -1683,11 +1871,19 @@ async function buildFlat(id, node, view = HOME) {
     }
     return fills.get(cat.id);
   };
-  const fill = catFill(c);
+  // an unpainted country with the tints on shows its land through a raster, redrawn for the visible part as the view settles
+  const terrain = !c && hypsoOn();
+  const fill = terrain ? 'none' : catFill(c);
   const { proj, core, insets, omitted, scs } = flatLayout(f);
   const path = d3.geoPath(proj).digits(2);
   const paper = el('g', {}, node);
-  el('path', { d: path(core) || '', fill, stroke: fill, 'stroke-width': .4, 'data-sw': .4, class: 'nohit' }, paper);
+  let hypso = null;
+  if (terrain) {
+    const cid = `hypso-${node.dataset.key}`;
+    el('path', { d: path(core) || '' }, el('clipPath', { id: cid }, defs));
+    hypso = { img: el('image', { 'clip-path': `url(#${cid})`, preserveAspectRatio: 'none', x: 0, y: 0, width: 0, height: 0, class: 'nohit' }, paper), proj, done: '' };
+  }
+  el('path', { d: path(core) || '', fill, stroke: terrain ? 'none' : fill, 'stroke-width': .4, 'data-sw': .4, class: 'nohit' }, paper);
   const regions = adminTopo ? topojson.feature(adminTopo, adminTopo.objects.r).features : [];
   for (const r of regions) {
     const rc = regionAssign.get(`${id}/${r.id}`);
@@ -1729,11 +1925,12 @@ async function buildFlat(id, node, view = HOME) {
     g: el('g', {}, paper),
     id,
     items: hitLevel === 2 ? labelItems(regions2, path, id, '2:', proj) : labelItems(regions, path, id, '', proj),
-    color: textOn(c ? averaged(c) : cfg.base),
-    halo: c && c.style === 'stripes' ? c.color : null
+    color: terrain ? INK : textOn(c ? averaged(c) : cfg.base),
+    halo: terrain ? '#fbfaf7' : c && c.style === 'stripes' ? c.color : null,
+    hypso
   };
   placeLabels(ctx, view);
-  if (scs) drawSeaInset(node, set, fill);
+  if (scs) drawSeaInset(node, set, terrain ? HYPSO_COLORS[9] : fill);
   const boxW = 136, boxH = 84, top = FLAT.h - 12 - boxH;
   insets.forEach((inset, i) => {
     const x = 24 + i * (boxW + 10);
@@ -1743,6 +1940,11 @@ async function buildFlat(id, node, view = HOME) {
     const ipath = d3.geoPath(ip).digits(2);
     const named = (INSET_LABELS[id] || []).find(([pt]) => d3.geoContains(inset.geom, pt));
     const label = named ? t(named[1]) : insetName(inset, regions);
+    if (terrain) {
+      const cid = `hypso-${node.dataset.key}-${i}`;
+      el('path', { d: ipath(inset.geom) || '' }, el('clipPath', { id: cid }, defs));
+      el('image', { href: flatRaster(ip, x, top, boxW, boxH, boxW * 3, boxH * 3).toDataURL('image/png'), x, y: top, width: boxW, height: boxH, preserveAspectRatio: 'none', 'clip-path': `url(#${cid})`, class: 'nohit' }, g);
+    }
     el('path', { d: ipath(inset.geom) || '', fill, stroke: '#000', 'stroke-opacity': .36, 'stroke-width': .5, 'data-sw': .5, 'data-name': label || nameOf(id) }, g);
     if (label) {
       let s = label;
@@ -1777,7 +1979,26 @@ function applyFlatView() {
   n.querySelectorAll('[data-blocpat]').forEach(p => p.setAttribute('patternTransform', `scale(${(1 / v.k).toFixed(4)})`));
   n.querySelectorAll('[data-dash]').forEach(p => p.setAttribute('stroke-dasharray', p.dataset.dash.split(' ').map(x => (x / v.k).toFixed(3)).join(' ')));
 }
+// the country map's tints for the part in view, at screen resolution; tiles come in first where a pixel is finer than the overview
+const flatViewKey = () => `${flatId}:${flatView.k}:${flatView.x}:${flatView.y}`;
+let flatHypsoTimer = 0, flatHypsoToken = 0;
+function queueFlatHypso() { clearTimeout(flatHypsoTimer); flatHypsoTimer = setTimeout(renderFlatHypso, 120); }
+async function renderFlatHypso() {
+  clearTimeout(flatHypsoTimer);
+  const ctx = flatCtx, H = ctx && ctx.hypso;
+  if (!H || view !== 'flat') return;
+  const token = ++flatHypsoToken, v = { ...flatView }, key = flatViewKey(), x0 = v.x, y0 = v.y, w = FLAT.w / v.k, h = FLAT.h / v.k;
+  const box = $('flat').getBoundingClientRect(), ratio = Math.min(window.devicePixelRatio || 1, 2);
+  const pw = clamp(Math.round(Math.min(box.width, box.height * FLAT.w / FLAT.h) * ratio), 200, 2000), ph = Math.round(pw * FLAT.h / FLAT.w);
+  const tiles = flatTiles(H.proj, x0, y0, w, h, pw);
+  if (tiles.length) await tilesLoaded(tiles);
+  if (token !== flatHypsoToken || flatCtx !== ctx) return;
+  const href = flatRaster(H.proj, x0, y0, w, h, pw, ph).toDataURL('image/png');
+  for (const [a, val] of [['href', href], ['x', x0], ['y', y0], ['width', w], ['height', h]]) H.img.setAttribute(a, val);
+  H.done = key;
+}
 function relabel() {
+  if (flatCtx && flatCtx.hypso) queueFlatHypso();
   clearTimeout(relabelTimer);
   relabelTimer = setTimeout(() => { if (flatCtx && view === 'flat') placeLabels(flatCtx, flatView); }, 90);
 }
@@ -1846,6 +2067,7 @@ async function renderFlat() {
   node.replaceChildren(...scratch.childNodes);
   flatCtx = info.ctx;
   applyFlatView();
+  if (flatCtx.hypso) renderFlatHypso();
   const bits = [];
   if (info.insets) bits.push(t('flatInsets'));
   if (info.omitted) bits.push(t('flatOmitted', { n: info.omitted }));
@@ -2028,6 +2250,9 @@ function syncBase() {
   $('t-grat').checked = cfg.graticule;
   $('t-gdr').checked = cfg.gdr;
   $('t-adm2').checked = cfg.adm2;
+  $('t-hypso').checked = cfg.hypso;
+  renderLegend();
+  if (cfg.hypso) loadDem();
 }
 function syncCfgText() { if ($('cfg-box').open) $('cfg-text').value = JSON.stringify(cfg, null, 2); }
 function renderAll() { rebuildAssign(); refreshMap(); renderBrushes(); syncEditor(); syncBase(); syncCfgText(); syncFlatBar(); renderBlocs(); }
@@ -2124,7 +2349,7 @@ $('cat-delete').addEventListener('click', () => {
   commit();
   say(t('deleted', { name }));
 });
-for (const [id, key] of [['t-labels', 'labels'], ['t-grat', 'graticule'], ['t-admin', 'admin'], ['t-gdr', 'gdr'], ['t-adm2', 'adm2']]) {
+for (const [id, key] of [['t-labels', 'labels'], ['t-grat', 'graticule'], ['t-admin', 'admin'], ['t-gdr', 'gdr'], ['t-adm2', 'adm2'], ['t-hypso', 'hypso']]) {
   $(id).addEventListener('change', e => {
     cfg[key] = e.target.checked;
     if (key === 'admin' && cfg.admin) ensureAdmin();
@@ -2241,7 +2466,7 @@ function flatExportNode() {
   node.setAttribute('xmlns', NS);
   return node;
 }
-function globeSvgNode() {
+function globeSvgNode(tints) {
   const set = DATA.hi || DATA.lo, w = size.w, h = size.h;
   const p = globeProjection(w, h, rot, zoom), path = d3.geoPath(p).digits(2);
   const vis = visAngle(w, h, zoom), fine = zoom > 1.5;
@@ -2249,7 +2474,12 @@ function globeSvgNode() {
   const defs = el('defs', {}, node);
   el('rect', { width: w, height: h, fill: cfg.paper }, node);
   el('path', { d: path(SPHERE), fill: cfg.ocean }, node);
+  const image = (canvas, extra = {}) => el('image', { href: canvas.toDataURL('image/png'), x: 0, y: 0, width: w, height: h, preserveAspectRatio: 'none', ...extra }, node);
+  if (tints) image(tints.sea);
   if (cfg.graticule) el('path', { d: path(GRATICULE) || '', fill: 'none', stroke: '#000', 'stroke-opacity': .06, 'stroke-width': .5 }, node);
+  // unpainted land shows the land raster through a clip made of the unpainted countries' own paths
+  const landClip = tints ? el('clipPath', { id: 'hypso-land' }, defs) : null;
+  if (tints) image(tints.land, { 'clip-path': 'url(#hypso-land)' });
   const fills = new Map();
   const fillOf = c => {
     if (!c) return cfg.base;
@@ -2269,7 +2499,13 @@ function globeSvgNode() {
     if (d3.geoDistance(center, f.cc) > vis + f.cr) continue;
     const d = path(fine ? visiblePolys(f, center, vis) : f);
     if (!d) continue;
-    const fill = fillOf(assign.get(f.id));
+    const c = assign.get(f.id);
+    if (!c && landClip) {
+      el('path', { id: 'country-' + f.id, d, fill: 'none' }, g);
+      el('use', { href: '#country-' + f.id }, landClip);
+      continue;
+    }
+    const fill = fillOf(c);
     el('path', { id: 'country-' + f.id, d, fill, stroke: fill, 'stroke-width': .5 }, g);
   }
   for (const [c, items] of paintedRegions(center, vis)) {
@@ -2290,8 +2526,11 @@ const toBlob = canvas => new Promise((ok, no) => canvas.toBlob(b => b ? ok(b) : 
 async function globePng() {
   const set = await hiReady, W = 2400, ratio = W / size.w;
   if (glReady && glHi) await glHi;
+  const tiles = hypsoOn() ? globeTiles(ratio) : [];
+  if (tiles.length) await tilesLoaded(tiles);
   if (glReady) {
     if (glDirty) drawBase();
+    if (hypsoOn() && glDem) glView.setTiles(residentTiles(tiles));
     const shot = glView.snapshot({ w: size.w, h: size.h, ratio, rotate: rot, scale: globeScale(size.w, size.h, zoom), paper: cfg.paper, ocean: cfg.ocean, graticule: cfg.graticule, admin: cfg.admin, gdr: cfg.gdr });
     drawBase();
     return toBlob(shot);
@@ -2301,11 +2540,13 @@ async function globePng() {
   canvas.height = Math.round(size.h * ratio);
   drawGlobe(canvas.getContext('2d'), {
     w: size.w, h: size.h, ratio, rotate: rot, set, seal: true, z: zoom,
+    tints: hypsoOn() ? globeRasters(size.w, size.h, ratio, rot, zoom) : null,
     admin: cfg.admin ? DATA.adminHi || DATA.adminLo : null
   });
   return toBlob(canvas);
 }
 async function flatPng() {
+  await flatTintsReady();
   const W = 2400, H = Math.round(W * FLAT.h / FLAT.w), k = flatView.k * W / FLAT.w;
   const node = flatExportNode();
   const texts = [...node.querySelectorAll('text')].map(t => ({
@@ -2337,9 +2578,15 @@ async function flatPng() {
   } finally { URL.revokeObjectURL(url); }
 }
 const currentPng = () => view === 'flat' ? flatPng() : globePng();
+// the country map's tints must match the view being exported
+async function flatTintsReady() { if (flatCtx && flatCtx.hypso && flatCtx.hypso.done !== flatViewKey()) await renderFlatHypso(); }
 async function currentSvg() {
-  if (view === 'globe') await hiReady;
-  const node = view === 'flat' ? flatExportNode() : globeSvgNode();
+  let tints = null;
+  if (view === 'globe') {
+    await hiReady;
+    if (hypsoOn()) { const r = 2000 / size.w, tiles = globeTiles(r); if (tiles.length) await tilesLoaded(tiles); tints = globeRasters(size.w, size.h, r, rot, zoom); }
+  } else await flatTintsReady();
+  const node = view === 'flat' ? flatExportNode() : globeSvgNode(tints);
   if (view === 'flat') { node.setAttribute('width', 2000); node.setAttribute('height', 1280); }
   return '<?xml version="1.0" encoding="UTF-8"?>\n' + serialize(node);
 }

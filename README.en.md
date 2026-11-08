@@ -44,6 +44,14 @@ The top bar switches between Chinese and English. Buttons, hints, country and re
 
 ![English interface with the dark theme, the globe turned to Asia](docs/images/dark.jpg)
 
+### Hypsometric tints
+
+Turn on **Hypsometric tints** under **Layers** in the left sidebar and unpainted land is coloured by elevation, the sea by depth, with a legend under the switch: nine land bands split at 200, 500, 1,000, 1,500, 2,000, 3,000, 4,000 and 5,000 m, eight sea bands split at 200, 1,000, 2,000 … 6,000 m. The colours are kept soft, and painted countries and regions sit on top as usual. Hovering over the map adds the elevation or depth band at that spot to the readout.
+
+The elevation is NOAA's ETOPO 2022 at one arc-minute, the raster resolution of the 1:10m map. The globe starts with a four-arc-minute overview; once an overview cell would span more than two screen pixels, the visible part switches to one-arc-minute tiles (15° × 15°, loaded as needed), and the flat maps do the same. The line between land and sea is always the map's own coastline: land below sea level in the data shows as the lowest land band, and coastal cells above sea level as the shallowest sea band. PNG and SVG exports include the tints; in SVG they are an embedded raster.
+
+![Hypsometric tints: Central Asia, the Tibetan Plateau and the Himalaya, with India painted in blue stripes](docs/images/hypso.jpg)
+
 ### Sidebars and layout
 
 The page fits one screen and never scrolls. Tools sit in the left sidebar (blocs, layers, interface theme, export and configuration) and colours in the right one (brushes, the current colour and the map colours). Either sidebar folds to a narrow rail (shortcuts `[` and `]`), and each card folds under its title. The pencil at the top of a sidebar starts editing: hide whole cards or single rows (a bloc you never use, say), reorder cards, or move a card to the other side; **Reset layout** brings the default back. The layout is remembered locally (in the settings file on the desktop) and comes back next time. Below 900 px wide, the sidebars open over the map, one at a time.
@@ -76,17 +84,18 @@ This project does not represent internationally recognised borders, nor the offi
 | Inner German border, West Berlin boundary (1951–1990) | OpenHistoricalMap relation 2692241 | CC0 |
 | Capitals (where a search flies to) | Natural Earth 1:10m populated places, plus 19 small territories added by hand | Public domain |
 | Flags | flag-icons | MIT |
+| Elevation and depth (hypsometric tints) | NOAA ETOPO 2022, 60 arc-seconds, ice surface | Public domain |
 | Position of the tenth dash | Based on Alibaba Cloud DataV geodata, approximate only | Terms not checked |
 
 The map data is not kept in the repository; the scripts below download and build it.
 
 ## Running and building
 
-You need Node.js (developed with version 24) and about 300 MB of disk space. The first time, run in order:
+You need Node.js (developed with version 24) and about 800 MB of disk space. The first time, run in order:
 
 ```sh
 npm install
-npm run fetch          # download the raw data into raw/, about 220 MB
+npm run fetch          # download the raw data into raw/, about 690 MB
 npm run prepare-data   # build the intermediate files
 npm run build          # build dist/data and dist/index.html, about 20 s
 npm run serve          # local preview: http://127.0.0.1:8765/wrap.html
@@ -96,13 +105,13 @@ If you only changed files in `src/`, `npm run assemble` is enough; it builds the
 
 Desktop: `npm run desktop` starts the app, and `npm run dist:mac` packages an Apple Silicon dmg and zip (about 125 MB each, 50 MB of which is map data) into `release/`. The app is not yet signed or notarised; the first time you open a copy on another Mac, right-click it and choose **Open**, or allow it under **System Settings › Privacy & Security**. `npm run dist:win` cross-builds the Windows x64 version on a Mac: an installer, `world-globe-1.0.0-x64-setup.exe` (about 100 MB), and a portable zip (about 140 MB). It is not signed either, so SmartScreen stops it on first run; click **More info**, then **Run anyway**.
 
-The README screenshots come from `node scripts/screenshots.mjs <globe|search|germany|blocs|dark>`, with `npm run serve` running. The desktop one was taken by hand.
+The README screenshots come from `node scripts/screenshots.mjs <globe|search|germany|blocs|dark|hypso>`, with `npm run serve` running. The desktop one was taken by hand.
 
 ## How it works
 
 The globe is drawn with WebGL2 in an orthographic projection, at 1:10m both while dragging and at rest, holding a steady 60 fps in all three drag tests; browsers without WebGL2 fall back to Canvas 2D. Hover highlights are drawn on a Canvas 2D layer, and flat maps are SVG so they export cleanly. Reading data, saving files and storing settings all go through `src/platform.js`, which has one implementation for the web and one for the desktop. Libraries: D3 7.9.0, TopoJSON and earcut 2.2.4.
 
-Simplified country outlines are embedded in the page. The 1:10m outlines, the region lines and each country's first-level (210 files) and second-level (201 files) data are separate files, loaded when a country is opened; about 50 MB in all.
+Simplified country outlines are embedded in the page. The 1:10m outlines, the region lines and each country's first-level (210 files) and second-level (201 files) data are separate files, loaded when a country is opened; about 50 MB in all. The elevation for the tints is made by `scripts/hypso.mjs` from ETOPO 2022: each cell becomes a one-byte band code, which compresses to about 1 MB for the overview and about 8 MB for the 288 one-arc-minute tiles. The globe's fragment shader inverts the projection at its own screen position and looks up the band; the flat maps, the Canvas fallback and the exports build their rasters on the CPU with the same inversion.
 
 The data is processed with mapshaper. The main steps:
 
@@ -131,6 +140,7 @@ scripts/             download, processing, assembly, screenshot and preview scri
   build.sh             build dist/data and assemble dist/index.html
   capitals.mjs         build src/capitals.js from Natural Earth
   flags.mjs            pack flag-icons flags per map unit into dist/data/flags.json
+  hypso.mjs            elevation bands for the hypsometric tints from ETOPO 2022 (dist/data/hypso)
   gdr-align.mjs        align German regions to the inner German border, cut out Amt Neuhaus
   assemble.mjs         assemble dist/index.html and desktop/app/
   screenshots.mjs      take the README screenshots
@@ -138,7 +148,7 @@ scripts/             download, processing, assembly, screenshot and preview scri
 test/                tests driving the local Chrome and Electron through puppeteer-core
   interactions.mjs     painting, code entry, migrating old settings
   denmark.mjs          flat-map insets
-  webgl.mjs            WebGL drawing, clicks, hover, zoom, export, blocs and languages (run in batches)
+  webgl.mjs            WebGL drawing, clicks, hover, zoom, export, blocs, languages and hypsometric tints (run in batches)
   desktop.mjs          desktop app: project files, menus, export, content security policy
   layout.mjs           sidebars, folding cards, editing what shows, no page scrolling
   bench.mjs            drag frame rate

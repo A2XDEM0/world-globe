@@ -7,6 +7,9 @@
 //   fallback  with WebGL switched off the page falls back to Canvas 2D and still picks
 //   blocs     bloc stripes in the right places (East and West Germany, Greenland outside the EU), one-click painting, flags in search
 //   i18n      the English interface: text, names, the country map's labels
+//   hypso     hypsometric tints: known bands at known places (overview and one-arc-minute tiles), WebGL against the CPU raster,
+//             painted countries on top, the readout, exports, the country map's raster and legend
+//   hypsocanvas  the same places with WebGL switched off
 import puppeteer from 'puppeteer-core';
 import fs from 'fs';
 const BATCH = process.argv[2] || 'spots', URL = process.argv[3] || 'http://127.0.0.1:8765/wrap.html';
@@ -17,18 +20,18 @@ const check = (name, ok, got) => { r[name] = got; if (!ok) fails.push(name); };
 try {
   const p = (await b.pages())[0] || await b.newPage();
   p.on('pageerror', e => errs.push(String(e)));
-  await p.evaluateOnNewDocument(off => { try { localStorage.clear(); } catch (e) {} if (off) window.WG_FORCE_CANVAS = true; }, BATCH === 'fallback');
+  await p.evaluateOnNewDocument(off => { try { localStorage.clear(); } catch (e) {} if (off) window.WG_FORCE_CANVAS = true; }, BATCH === 'fallback' || BATCH === 'hypsocanvas');
   await p.goto(URL, { waitUntil: 'load' });
-  await p.waitForFunction(off => DATA.hi && (off || renderer === 'WebGL 1:10m'), { timeout: 20000 }, BATCH === 'fallback');
+  await p.waitForFunction(off => DATA.hi && (off || renderer === 'WebGL 1:10m'), { timeout: 20000 }, BATCH === 'fallback' || BATCH === 'hypsocanvas');
   // one test colour, painting countries; helpers live on window for the batches below
   await p.evaluate(() => {
     cfg = normalize({ cats: [{ id: 't', name: '测试', color: '#cc3366', stripe: '#ffffff', ids: [] }] }); active = 't'; renderAll(); setMode('paint'); setUnit(0);
     window.centerOn = (ll, z) => { stopMotion(); rot = [-ll[0], -ll[1], 0]; zoom = z; moving = false; drawBase(); };
-    const state = ratio => ({ w: size.w, h: size.h, ratio, rotate: rot, scale: globeScale(size.w, size.h, zoom), paper: cfg.paper, ocean: cfg.ocean, graticule: cfg.graticule, admin: cfg.admin, gdr: cfg.gdr });
+    const state = ratio => ({ w: size.w, h: size.h, ratio, rotate: rot, scale: globeScale(size.w, size.h, zoom), paper: cfg.paper, ocean: cfg.ocean, graticule: cfg.graticule, admin: cfg.admin, gdr: cfg.gdr, hypso: hypsoOn() && glDem });
     window.glImage = ratio => { const c = glView.snapshot(state(ratio)); drawBase(); return c; };
     window.cvImage = ratio => {
       const c = document.createElement('canvas'); c.width = Math.round(size.w * ratio); c.height = Math.round(size.h * ratio);
-      drawGlobe(c.getContext('2d'), { ...state(ratio), rotate: rot, z: zoom, set: DATA.hi, seal: false, admin: cfg.admin ? DATA.adminHi || DATA.adminLo : null });
+      drawGlobe(c.getContext('2d'), { ...state(ratio), rotate: rot, z: zoom, set: DATA.hi, seal: false, admin: cfg.admin ? DATA.adminHi || DATA.adminLo : null, tints: hypsoOn() ? globeRasters(size.w, size.h, ratio, rot, zoom) : null });
       return c;
     };
     window.pixel = (c, x, y) => [...c.getContext('2d').getImageData(Math.round(x), Math.round(y), 1, 1).data.slice(0, 3)].map(v => v.toString(16).padStart(2, '0')).join('');
@@ -262,6 +265,69 @@ try {
     await p.click('#lang-zh + span'); await sleep(300);
     const zh = await p.evaluate(() => ({ h1: document.querySelector('h1').textContent, pref: platform.pref('lang') }));
     check('切回中文', zh.h1 === '世界色彩地球' && zh.pref === 'zh', JSON.stringify(zh));
+  }
+  if (BATCH === 'hypso' || BATCH === 'hypsocanvas') {
+    const gl = BATCH === 'hypso';
+    await p.evaluate(() => { cfg.graticule = false; $('t-hypso').click(); });
+    await p.waitForFunction(gl => hypsoOn() && (!gl || glDem), { timeout: 10000 }, gl);
+    // the centre pixel against the band the data gives there, at the overview's scale and with one-arc-minute tiles in
+    const places = [['青藏高原', [88, 33], c => c >= 14, true], ['恒河三角洲', [90.4, 23.7], c => c <= 8, true], ['亚马孙平原', [-62, -4], c => c <= 8, true],
+      ['格陵兰冰盖', [-40, 72], c => c >= 13, true], ['马里亚纳海沟', [142.2, 11.35], c => c === 0, false], ['北海', [3, 55], c => c === 7, false], ['大西洋深海平原', [-40, 30], c => c <= 3, false]];
+    for (const [name, ll, ok, land] of places) for (const z of [1.2, 8]) {
+      await p.evaluate((ll, z) => centerOn(ll, z), ll, z);
+      if (z > 2) await p.waitForFunction(ll => { const T = DEM.index.tiles, k = `${Math.floor((90 - ll[1]) / T.deg)}-${Math.floor((ll[0] + 180) / T.deg)}`; return DEM.tiles.get(k) && DEM.tiles.get(k).codes; }, { timeout: 8000 }, ll);
+      await sleep(150);
+      const got = await p.evaluate((ll, land, gl) => {
+        drawBase();
+        const code = codeAt(ll[0], ll[1]), want = HYPSO_COLORS[land ? Math.max(code, 8) : Math.min(code, 7)].slice(1);
+        const px = gl ? pixel(glImage(size.ratio), size.w * size.ratio / 2, size.h * size.ratio / 2) : pixel($('base'), size.w * size.ratio / 2, size.h * size.ratio / 2);
+        return { code, want, px, tiles: gl ? glView.stats.demTiles : DEM.tiles.size };
+      }, ll, land, gl);
+      check(`${name} ×${z}`, ok(got.code) && got.px === got.want && (z < 2 || got.tiles > 0), JSON.stringify(got));
+    }
+    if (gl) {
+      // the whole Alps view: WebGL and the CPU raster (used by the Canvas fallback and the exports) agree pixel for pixel away from lines
+      await p.evaluate(() => centerOn([10, 46.3], 5));
+      await p.waitForFunction(() => globeTiles(1).every(q => DEM.tiles.get(q.key) && DEM.tiles.get(q.key).codes), { timeout: 10000 });
+      const agree = await p.evaluate(() => {
+        drawBase();
+        const a = glImage(1), b = cvImage(1);
+        let same = 0, n = 0;
+        for (let y = 20; y < size.h - 20; y += 7) for (let x = 20; x < size.w - 20; x += 7) { n++; if (pixel(a, x, y) === pixel(b, x, y)) same++; }
+        return { same, n, share: +(same / n).toFixed(3) };
+      });
+      check('WebGL 与 CPU 栅格一致（阿尔卑斯）', agree.share > .9, JSON.stringify(agree));
+      // painted countries keep their colour over the tints
+      const painted = await p.evaluate(() => { togglePaint('CHN'); centerOn([88, 33], 3); const px = pixel(glImage(size.ratio), size.w * size.ratio / 2, size.h * size.ratio / 2); togglePaint('CHN'); return px; });
+      check('涂色国家盖住分层', painted === 'cc3366', painted);
+      // the readout gives the band on land and the depth at sea
+      const hover = [];
+      for (const ll of [[88, 33], [3, 55]]) {
+        await p.evaluate(ll => centerOn(ll, 3), ll);
+        await p.mouse.move(cx + 2, cy); await p.mouse.move(cx, cy); await sleep(150);
+        hover.push(await p.$eval('#readout', n => n.textContent));
+      }
+      check('悬停显示海拔和水深', /海拔 \d/.test(hover[0]) && /^海洋 · 水深 0–200 米$/.test(hover[1]), hover.join(' | '));
+      // exports
+      await p.evaluate(() => centerOn([86, 28], 4));
+      const svg = await p.evaluate(async () => { const s = await currentSvg(); return { images: (s.match(/<image /g) || []).length, clip: s.includes('<clipPath id="hypso-land">'), uses: (s.match(/<use /g) || []).length, png: (s.match(/data:image\/png;base64/g) || []).length, mb: +(s.length / 1e6).toFixed(1) }; });
+      check('地球 SVG 带分层栅格', svg.images === 2 && svg.clip && svg.uses > 3 && svg.png === 2, JSON.stringify(svg));
+      const png = await p.evaluate(async () => { const b = await currentPng(); const bmp = await createImageBitmap(b); return [bmp.width, bmp.height, b.size]; });
+      check('地球 PNG', png[0] === 2400 && png[2] > 100000, JSON.stringify(png));
+      await p.screenshot({ path: 'work/hypso-globe.png', clip: { x: box.x, y: box.y, width: box.width, height: box.height } });
+      // the country map: a raster clipped to the country, redrawn after zooming, with tiles where a pixel is finer than the overview
+      await p.evaluate(() => openCountry('NPL'));
+      await p.waitForFunction(() => flatCtx && flatCtx.hypso && flatCtx.hypso.done === flatViewKey(), { timeout: 10000 });
+      const flat1 = await p.evaluate(() => ({ href: flatCtx.hypso.img.getAttribute('href').length, tile: !!(DEM.tiles.get('4-17') && DEM.tiles.get('4-17').codes), labelInk: [...$('flat').querySelectorAll('text')].slice(0, 3).map(n => n.getAttribute('fill')).join() }));
+      await p.evaluate(() => { const r = $('flat').getBoundingClientRect(); zoomFlat(4, r.left + r.width / 2, r.top + r.height / 2); });
+      await p.waitForFunction(() => flatCtx.hypso.done === flatViewKey(), { timeout: 10000 });
+      const flat2 = await p.evaluate(async () => ({ w: +flatCtx.hypso.img.getAttribute('width'), svg: (await currentSvg()).includes('data:image/png'), png: (await flatPng()).size }));
+      check('平面图分层', flat1.href > 10000 && flat1.tile && flat1.labelInk.startsWith('#2a2b30') && Math.abs(flat2.w - 250) < 1 && flat2.svg && flat2.png > 100000, JSON.stringify({ flat1, flat2 }));
+      await p.screenshot({ path: 'work/hypso-nepal.png', clip: { x: box.x, y: box.y, width: box.width, height: box.height } });
+      await p.evaluate(() => closeCountry());
+      const legend = await p.evaluate(() => ({ bars: [...document.querySelectorAll('#hypso-legend .legend-bar')].map(b => b.children.length).join(), title: document.querySelector('#hypso-legend .legend-bar span').title, saved: cfg.hypso }));
+      check('图例', legend.bars === '9,8' && legend.title === '200 米以下' && legend.saved, JSON.stringify(legend));
+    }
   }
   r.renderer = await p.evaluate(() => renderer);
 } catch (e) { errs.push('TEST ' + e.message); }

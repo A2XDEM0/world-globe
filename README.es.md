@@ -44,6 +44,14 @@ La barra superior cambia entre chino e inglés: botones, ayudas, nombres de paí
 
 ![Interfaz en inglés con el tema oscuro, el globo girado hacia Asia](docs/images/dark.jpg)
 
+### Tintas hipsométricas
+
+Active **Hypsometric tints** en **Layers**, en la barra izquierda, y la tierra sin colorear toma el color de su altitud y el mar el de su profundidad, con una leyenda bajo el interruptor: nueve escalones para la tierra (límites en 200, 500, 1000, 1500, 2000, 3000, 4000 y 5000 m) y ocho para el mar (200, 1000, 2000 … 6000 m). Los colores son suaves, y los países y divisiones coloreados quedan encima como siempre. Al pasar el puntero, la línea de información añade el escalón de altitud o de profundidad de ese punto.
+
+La altitud es ETOPO 2022 (NOAA) a un minuto de arco, la resolución ráster del mapa 1:10m. El globo empieza con una vista general de cuatro minutos de arco; en cuanto una de sus celdas ocuparía más de dos píxeles de pantalla, la parte visible pasa a teselas de un minuto de arco (15° × 15°, cargadas según hace falta), y los mapas planos hacen lo mismo. La frontera entre tierra y mar es siempre la línea de costa del propio mapa: la tierra bajo el nivel del mar en los datos se muestra con el escalón terrestre más bajo, y las celdas costeras sobre el nivel del mar con el escalón marino menos profundo. Las exportaciones PNG y SVG incluyen las tintas; en SVG son un ráster incrustado.
+
+![Tintas hipsométricas: Asia central, la meseta tibetana y el Himalaya, con la India coloreada con rayas azules](docs/images/hypso.jpg)
+
 ### Barras laterales y disposición
 
 La página cabe en una sola pantalla y nunca se desplaza. Las herramientas están en la barra izquierda (bloques, capas, tema de la interfaz, exportación y configuración) y los colores en la derecha (pinceles, color actual y colores del mapa). Cada barra se pliega en un riel estrecho (atajos `[` y `]`), y cada tarjeta se pliega bajo su título. El lápiz de la parte superior de una barra activa la edición: ocultar tarjetas enteras o filas sueltas (un bloque que nunca usa, por ejemplo), reordenar tarjetas o pasar una al otro lado; **Reset layout** recupera la disposición por defecto. La disposición se recuerda localmente (en el archivo de ajustes en la aplicación de escritorio) y vuelve la próxima vez. Con menos de 900 px de ancho, las barras se abren sobre el mapa, una cada vez.
@@ -76,17 +84,18 @@ Este proyecto no representa las fronteras reconocidas internacionalmente ni la p
 | Frontera interalemana, límite de Berlín Oeste (1951–1990) | OpenHistoricalMap, relación 2692241 | CC0 |
 | Capitales (destino de una búsqueda) | Natural Earth 1:10m, lugares poblados, más 19 territorios pequeños añadidos a mano | Dominio público |
 | Banderas | flag-icons | MIT |
+| Altitud y profundidad (tintas hipsométricas) | NOAA ETOPO 2022, 60 segundos de arco, superficie del hielo | Dominio público |
 | Posición del décimo trazo | Según los geodatos DataV de Alibaba Cloud, solo aproximada | Condiciones no comprobadas |
 
 Los datos del mapa no están en el repositorio; los scripts de abajo los descargan y los construyen.
 
 ## Ejecutar y construir
 
-Hace falta Node.js (desarrollado con la versión 24) y unos 300 MB de disco. La primera vez, ejecute en orden:
+Hace falta Node.js (desarrollado con la versión 24) y unos 800 MB de disco. La primera vez, ejecute en orden:
 
 ```sh
 npm install
-npm run fetch          # descarga los datos originales en raw/, unos 220 MB
+npm run fetch          # descarga los datos originales en raw/, unos 690 MB
 npm run prepare-data   # construye los archivos intermedios
 npm run build          # construye dist/data y dist/index.html, unos 20 s
 npm run serve          # vista previa local: http://127.0.0.1:8765/wrap.html
@@ -96,13 +105,13 @@ Si solo cambiaron archivos de `src/`, basta con `npm run assemble`; construye la
 
 Escritorio: `npm run desktop` abre la aplicación, y `npm run dist:mac` genera un dmg y un zip para Apple Silicon (unos 125 MB cada uno, 50 MB de ellos datos del mapa) en `release/`. La aplicación aún no está firmada ni notarizada: la primera vez que se abre en otro Mac, haga clic derecho y elija **Abrir**, o permítala en **Ajustes del Sistema › Privacidad y seguridad**. `npm run dist:win` genera desde un Mac la versión para Windows x64: un instalador, `world-globe-1.0.0-x64-setup.exe` (unos 100 MB), y un zip portátil (unos 140 MB). Tampoco está firmada, así que SmartScreen la detiene la primera vez; haga clic en **Más información** y luego en **Ejecutar de todas formas**.
 
-Las capturas del README se generan con `node scripts/screenshots.mjs <globe|search|germany|blocs|dark>`, con `npm run serve` en marcha. La de la aplicación de escritorio se hizo a mano.
+Las capturas del README se generan con `node scripts/screenshots.mjs <globe|search|germany|blocs|dark|hypso>`, con `npm run serve` en marcha. La de la aplicación de escritorio se hizo a mano.
 
 ## Cómo funciona
 
 El globo se dibuja con WebGL2 en proyección ortográfica, a 1:10m tanto al arrastrar como en reposo, con 60 fotogramas por segundo estables en las tres pruebas de arrastre; sin WebGL2, el navegador vuelve a Canvas 2D. El resaltado al pasar el puntero se dibuja en una capa de Canvas 2D, y los mapas planos son SVG para exportarlos limpiamente. La lectura de datos, el guardado de archivos y los ajustes pasan por `src/platform.js`, que tiene una implementación para la web y otra para el escritorio. Bibliotecas: D3 7.9.0, TopoJSON y earcut 2.2.4.
 
-Los contornos simplificados de los países van incrustados en la página. Los contornos a 1:10m, las líneas de las divisiones y los datos de primer nivel (210 archivos) y de segundo nivel (201 archivos) de cada país son archivos aparte, que se cargan al abrir el país; unos 50 MB en total.
+Los contornos simplificados de los países van incrustados en la página. Los contornos a 1:10m, las líneas de las divisiones y los datos de primer nivel (210 archivos) y de segundo nivel (201 archivos) de cada país son archivos aparte, que se cargan al abrir el país; unos 50 MB en total. La altitud de las tintas la genera `scripts/hypso.mjs` a partir de ETOPO 2022: cada celda pasa a ser un código de escalón de un byte, que comprimido ocupa cerca de 1 MB en la vista general y unos 8 MB en las 288 teselas de un minuto de arco. El fragment shader del globo invierte la proyección en su propia posición de pantalla y busca el escalón; los mapas planos, la alternativa en Canvas y las exportaciones construyen sus rásteres en la CPU con la misma inversión.
 
 Los datos se procesan con mapshaper. Pasos principales:
 
@@ -131,6 +140,7 @@ scripts/             descarga, procesamiento, montaje, capturas y vista previa
   build.sh             construye dist/data y monta dist/index.html
   capitals.mjs         genera src/capitals.js a partir de Natural Earth
   flags.mjs            agrupa las banderas de flag-icons por unidad en dist/data/flags.json
+  hypso.mjs            escalones de altitud para las tintas hipsométricas a partir de ETOPO 2022 (dist/data/hypso)
   gdr-align.mjs        alinea las divisiones alemanas con la frontera interalemana y recorta el Amt Neuhaus
   assemble.mjs         monta dist/index.html y desktop/app/
   screenshots.mjs      toma las capturas del README
@@ -138,7 +148,7 @@ scripts/             descarga, procesamiento, montaje, capturas y vista previa
 test/                pruebas que manejan Chrome y Electron en local con puppeteer-core
   interactions.mjs     coloreado, introducción de códigos, migración de ajustes antiguos
   denmark.mjs          recuadros de los mapas planos
-  webgl.mjs            dibujo WebGL, clics, puntero, zoom, exportación, bloques e idiomas (por lotes)
+  webgl.mjs            dibujo WebGL, clics, puntero, zoom, exportación, bloques, idiomas y tintas hipsométricas (por lotes)
   desktop.mjs          escritorio: archivos de proyecto, menús, exportación, política de seguridad
   layout.mjs           barras laterales, tarjetas plegables, edición de lo que se muestra, página sin desplazamiento
   bench.mjs            fluidez al arrastrar

@@ -4,6 +4,10 @@
 // MAX blending, so dense coastlines do not darken where segments overlap, then composited the way the Canvas 2D strokes are.
 // Projection and rotation follow d3.geoOrthographic().rotate([λ, φ, 0]) exactly, so the Canvas 2D overlay and picking line up.
 // Blocs are a second pass over the same meshes: stripes falling to the right, one bloc colour after another, in screen space.
+// Hypsometric tints: unpainted land and the sea take their colour from an elevation band per pixel. Each fragment finds its place
+// on the earth by inverting the projection at its own screen position, then reads the band from a one-arc-minute tile when one is
+// resident, else from the four-arc-minute overview; land and sea each keep to their own side of the colour table, so the coast
+// stays the map's own.
 // Regions whose blocs differ from their country's (Greenland in the EU, the GDR in the Warsaw Pact) are cut out of the country's
 // stripes with the stencil buffer and striped on their own, so nothing has to be repainted and painted districts stay visible.
 const GlobeGL = (() => {
@@ -130,11 +134,34 @@ const GlobeGL = (() => {
 uniform mat3 uRot; uniform vec2 uCenter; uniform float uScale; uniform vec2 uView;
 vec2 screen(vec3 p) { return uCenter + uScale * vec2(p.y, -p.z); }
 vec4 clip(vec2 s) { return vec4(s.x / uView.x * 2.0 - 1.0, 1.0 - s.y / uView.y * 2.0, 0.0, 1.0); }`;
+  // elevation bands: codes 0–7 are sea depths, 8–16 land heights (scripts/hypso.mjs); a tile index of 0 means not resident
+  const DEM = `
+uniform mat3 uRot; uniform vec2 uCenter; uniform float uScale; uniform float uHeight;
+uniform highp sampler2D uDem0; uniform highp sampler2DArray uDemT; uniform highp sampler2D uDemIdx; uniform highp sampler2D uLut;
+uniform vec2 uDem0Size; uniform vec4 uTiles;
+vec3 geoAt() {
+  vec2 q = vec2(gl_FragCoord.x, uHeight - gl_FragCoord.y), s = (q - uCenter) / uScale;
+  return vec3(sqrt(max(0.0, 1.0 - dot(s, s))), s.x, -s.y) * uRot;
+}
+int demCode(vec3 g) {
+  vec2 d = vec2(degrees(atan(g.y, g.x)) + 180.0, 90.0 - degrees(asin(clamp(g.z, -1.0, 1.0))));
+  vec2 t = d / uTiles.z;
+  ivec2 ti = clamp(ivec2(floor(t)), ivec2(0), ivec2(uTiles.xy) - 1);
+  int layer = int(texelFetch(uDemIdx, ti, 0).r * 255.0 + 0.5) - 1;
+  float v;
+  if (layer >= 0) v = texelFetch(uDemT, ivec3(clamp(ivec2((t - vec2(ti)) * uTiles.w), ivec2(0), ivec2(int(uTiles.w) - 1)), layer), 0).r;
+  else v = texelFetch(uDem0, clamp(ivec2(d / vec2(360.0, 180.0) * uDem0Size), ivec2(0), ivec2(uDem0Size) - 1), 0).r;
+  return int(v * 255.0 + 0.5);
+}
+vec3 demColor(bool land) {
+  int c = demCode(geoAt());
+  return texelFetch(uLut, ivec2(land ? max(c, 8) : min(c, 7), 0), 0).rgb;
+}`;
   const FILL_VS = HEAD + PROJECT + `
 in vec4 aPos; out float vDepth; flat out int vSlot;
 void main() { vec3 p = uRot * aPos.xyz; gl_Position = clip(screen(p)); vDepth = p.x; vSlot = int(aPos.w + 0.5); }`;
-  const FILL_FS = HEAD + `
-in float vDepth; flat in int vSlot; uniform sampler2D uColors; uniform float uRatio; uniform float uPeriod; uniform float uHeight; uniform int uMode; uniform int uCutOnly; out vec4 o;
+  const FILL_FS = HEAD + DEM + `
+in float vDepth; flat in int vSlot; uniform sampler2D uColors; uniform float uRatio; uniform float uPeriod; uniform int uMode; uniform int uCutOnly; out vec4 o;
 void main() {
   if (vDepth < 0.0) discard;
   ivec2 at = ivec2((vSlot % 256) * 6, vSlot / 256);
@@ -161,7 +188,9 @@ void main() {
   vec4 c = texelFetch(uColors, at, 0);
   if (c.a == 0.0) discard;
   vec3 col = c.rgb;
-  if (c.a < 0.75) {
+  // unpainted land with the tints on
+  if (c.a < 0.375) col = demColor(true);
+  else if (c.a < 0.75) {
     // the Canvas pattern: stripes along x + y = n·period in CSS pixels from the top left, 2.6 px wide
     vec2 q = vec2(gl_FragCoord.x, uHeight - gl_FragCoord.y) / uRatio;
     float u = mod(q.x + q.y, uPeriod), d = min(u, uPeriod - u) * 0.70710678;
@@ -198,13 +227,13 @@ void main() {
 }`;
   const QUAD_VS = HEAD + 'layout(location = 0) in vec2 aCorner; void main() { gl_Position = vec4(aCorner, 0.0, 1.0); }';
   // ocean disc with the graticule (it sits under the land), anti-aliased at the rim
-  const OCEAN_FS = HEAD + `
-uniform sampler2D uA; uniform vec2 uCenter; uniform float uR; uniform float uHeight; uniform vec3 uOcean; uniform float uGrat; out vec4 o;
+  const OCEAN_FS = HEAD + DEM + `
+uniform sampler2D uA; uniform float uR; uniform vec3 uOcean; uniform float uGrat; uniform int uHypso; out vec4 o;
 void main() {
   vec2 q = vec2(gl_FragCoord.x, uHeight - gl_FragCoord.y);
   float cov = clamp(uR - distance(q, uCenter) + 0.5, 0.0, 1.0);
   float g = texelFetch(uA, ivec2(gl_FragCoord.xy), 0).r * uGrat;
-  o = vec4(uOcean * (1.0 - g), 1.0) * cov;
+  o = vec4((uHypso == 1 ? demColor(false) : uOcean) * (1.0 - g), 1.0) * cov;
 }`;
   // black strokes over the land, in the order the Canvas version strokes them, plus the rim of the sphere
   const INK_FS = HEAD + `
@@ -272,7 +301,7 @@ void main() {
         // a slot with blocs but no paint of its own (a region only there for its blocs) leaves the fill empty
         if (c.color) {
           hex(c.color, colorData, at);
-          colorData[at + 3] = c.style === 'stripes' ? 128 : 255;
+          colorData[at + 3] = c.style === 'stripes' ? 128 : c.style === 'terrain' ? 64 : 255;
           hex(c.stripe || c.color, colorData, at + 4);
         }
         colorData[at + 7] = c.cut ? 128 : 255;
@@ -282,6 +311,77 @@ void main() {
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, 1536, colorRows, 0, gl.RGBA, gl.UNSIGNED_BYTE, colorData);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    }
+
+    /* elevation: the overview, up to TILES one-arc-minute tiles in a texture array, the tile index and the colour table */
+    const TILES = 64;
+    const dem = { ready: false, w: 1, h: 1, tile: 900, cols: 24, rows: 12, deg: 15, layers: new Map(), array: false };
+    const demTex = { ov: gl.createTexture(), arr: gl.createTexture(), idx: gl.createTexture(), lut: gl.createTexture() };
+    const r8 = (tex, w, h, data) => {
+      gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, w, h, 0, gl.RED, gl.UNSIGNED_BYTE, data);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+      gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
+    };
+    // every sampler needs a texture of its own kind even while the tints are off
+    r8(demTex.ov, 1, 1, new Uint8Array(1));
+    r8(demTex.idx, 1, 1, new Uint8Array(1));
+    gl.bindTexture(gl.TEXTURE_2D_ARRAY, demTex.arr);
+    gl.texImage3D(gl.TEXTURE_2D_ARRAY, 0, gl.R8, 1, 1, 1, 0, gl.RED, gl.UNSIGNED_BYTE, new Uint8Array(1));
+    gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.bindTexture(gl.TEXTURE_2D, demTex.lut);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
+    // { overview: Uint8Array of codes, w, h, tile: { size, deg, cols, rows }, colors: hex per code }; false if the GPU cannot hold it
+    function setDem(d) {
+      const max = gl.getParameter(gl.MAX_TEXTURE_SIZE);
+      if (d.w > max || d.h > max || d.tile.size > gl.getParameter(gl.MAX_TEXTURE_SIZE)) return false;
+      r8(demTex.ov, d.w, d.h, d.overview);
+      Object.assign(dem, { w: d.w, h: d.h, tile: d.tile.size, deg: d.tile.deg, cols: d.tile.cols, rows: d.tile.rows, ready: true });
+      const lut = new Uint8Array(d.colors.length * 4);
+      d.colors.forEach((h, i) => { hex(h, lut, i * 4); lut[i * 4 + 3] = 255; });
+      gl.bindTexture(gl.TEXTURE_2D, demTex.lut);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, d.colors.length, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, lut);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+      dem.layers.clear();
+      syncIndex();
+      return true;
+    }
+    function syncIndex() {
+      const idx = new Uint8Array(dem.cols * dem.rows);
+      for (const [key, layer] of dem.layers) { const [r, c] = key.split('-').map(Number); idx[r * dem.cols + c] = layer + 1; }
+      r8(demTex.idx, dem.cols, dem.rows, idx);
+    }
+    // the tiles that should be resident, nearest the view first, as [{ key: 'row-col', codes }]; others give up their layers
+    function setTiles(list) {
+      if (!dem.ready) return;
+      list = list.slice(0, TILES);
+      const want = new Set(list.map(q => q.key));
+      let changed = false;
+      for (const [key] of dem.layers) if (!want.has(key)) { dem.layers.delete(key); changed = true; }
+      const used = new Set(dem.layers.values());
+      for (const q of list) {
+        if (dem.layers.has(q.key)) continue;
+        if (!dem.array) {
+          gl.bindTexture(gl.TEXTURE_2D_ARRAY, demTex.arr);
+          gl.texImage3D(gl.TEXTURE_2D_ARRAY, 0, gl.R8, dem.tile, dem.tile, TILES, 0, gl.RED, gl.UNSIGNED_BYTE, null);
+          dem.array = true;
+        }
+        let layer = 0;
+        while (used.has(layer)) layer++;
+        used.add(layer);
+        gl.bindTexture(gl.TEXTURE_2D_ARRAY, demTex.arr);
+        gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+        gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, 0, 0, 0, layer, dem.tile, dem.tile, 1, gl.RED, gl.UNSIGNED_BYTE, q.codes);
+        gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
+        dem.layers.set(q.key, layer);
+        changed = true;
+      }
+      if (changed) syncIndex();
+      stats.demTiles = dem.layers.size;
     }
 
     /* meshes */
@@ -394,7 +494,7 @@ void main() {
     }
 
     const rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16) / 255);
-    // s = { w, h, ratio, rotate, scale (CSS px), paper, ocean, graticule, admin, gdr }; the canvas is already w·ratio by h·ratio
+    // s = { w, h, ratio, rotate, scale (CSS px), paper, ocean, graticule, admin, gdr, hypso }; the canvas is already w·ratio by h·ratio
     function draw(s) {
       const W = Math.round(s.w * s.ratio), H = Math.round(s.h * s.ratio);
       const l = s.rotate[0] * RAD, p = s.rotate[1] * RAD, cl = Math.cos(l), sl = Math.sin(l), cp = Math.cos(p), sp = Math.sin(p);
@@ -408,6 +508,11 @@ void main() {
         if (prog.u.uView) gl.uniform2f(prog.u.uView, W, H);
         if (prog.u.uHeight) gl.uniform1f(prog.u.uHeight, H);
         if (prog.u.uR) gl.uniform1f(prog.u.uR, R);
+        if (prog.u.uDem0) {
+          gl.uniform1i(prog.u.uDem0, 3); gl.uniform1i(prog.u.uDemT, 4); gl.uniform1i(prog.u.uDemIdx, 5); gl.uniform1i(prog.u.uLut, 6);
+          gl.uniform2f(prog.u.uDem0Size, dem.w, dem.h);
+          gl.uniform4f(prog.u.uTiles, dem.cols, dem.rows, dem.deg, dem.tile);
+        }
       };
       target(W, H);
       gl.viewport(0, 0, W, H);
@@ -449,7 +554,12 @@ void main() {
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, cover[0]);
       gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, cover[1]);
       gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, colorTex);
+      gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D, demTex.ov);
+      gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_2D_ARRAY, demTex.arr);
+      gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D, demTex.idx);
+      gl.activeTexture(gl.TEXTURE6); gl.bindTexture(gl.TEXTURE_2D, demTex.lut);
       common(ocean);
+      gl.uniform1i(ocean.u.uHypso, s.hypso && dem.ready ? 1 : 0);
       gl.uniform1i(ocean.u.uA, 0);
       gl.uniform3fv(ocean.u.uOcean, rgb(s.ocean));
       gl.uniform1f(ocean.u.uGrat, .06);
@@ -522,8 +632,8 @@ void main() {
       ctx.putImageData(img, 0, 0);
       return out;
     }
-    const stats = { countryVerts: 0, countryTris: 0, regionTris: 0, segments: 0 };
-    return { gl, setCountries, addRegion, setLines, setColors, draw, snapshot, stats, detail: () => countries.detail, maxSize: gl.getParameter(gl.MAX_RENDERBUFFER_SIZE) };
+    const stats = { countryVerts: 0, countryTris: 0, regionTris: 0, segments: 0, demTiles: 0 };
+    return { gl, setCountries, addRegion, setLines, setColors, setDem, setTiles, demReady: () => dem.ready, draw, snapshot, stats, detail: () => countries.detail, maxSize: gl.getParameter(gl.MAX_RENDERBUFFER_SIZE) };
   }
   return { create, meshPolygon, ring3, segments };
 })();

@@ -71,6 +71,16 @@ await launch([FILE], async (p, main) => {
   await p.evaluate(() => $('undo').click());
   await sleep(700);
   r.fileAfterUndo = fileIds();
+  // hypsometric tints: the elevation files come over app://, the one-arc-minute tiles too, and the switch is saved in the project
+  await p.evaluate(() => $('t-hypso').click());
+  await p.waitForFunction('hypsoOn() && glDem', { timeout: 10000 });
+  await p.evaluate(() => { rot = [-86.9, -28, 0]; zoom = 6; moving = false; drawBase(); });
+  await p.waitForFunction('glView.stats.demTiles > 0', { timeout: 10000 });
+  await sleep(700);
+  r.hypso = await p.evaluate(() => ({ tiles: glView.stats.demTiles, code: codeAt(88, 33) }));
+  r.hypso.file = JSON.parse(fs.readFileSync(FILE, 'utf8')).hypso;
+  // back to the whole globe for the exports below
+  await p.evaluate(() => { rot = [60, -20, 0]; zoom = 1; moving = false; drawBase(); });
   // theme: dark pins the page and the window; system hands it back
   await p.evaluate(() => { $('theme-dark').click(); });
   await sleep(300);
@@ -135,6 +145,8 @@ await launch([], async (p, main) => {
 await launch([], async (p, main) => {
   r.titleRun3 = await main('wgTest.title()');
   r.run3 = await p.evaluate(() => cfg.cats.map(c => c.ids.join(',')).join('|'));
+  await p.waitForFunction('hypsoOn()', { timeout: 10000 }).catch(() => {});
+  r.hypsoRun3 = await p.evaluate(() => ({ on: hypsoOn(), box: $('t-hypso').checked }));
 });
 
 const pass = {
@@ -144,7 +156,8 @@ const pass = {
   export: r.png && r.png.signature === 'PNG' && r.png.width === 2400 && r.svg && r.svg.countries > 50,
   nextLaunch: r.restored && r.restored.cats === 'JPN' && r.restored.leftShut && /^● /.test(r.titleRestored || '') && r.askedRun2 && r.askedRun2.length === 1 && r.reopened === 'DNK,BRA' && r.keptAfterOpen === false && r.run3 === 'DNK,BRA' && /旧项目/.test(r.titleRun3 || ''),
   noPrompts: r.askedRun1 && r.askedRun1.length === 0,
-  csp: r.inlineScript && !r.inlineScript.ran && r.remoteFetch === 'blocked'
+  csp: r.inlineScript && !r.inlineScript.ran && r.remoteFetch === 'blocked' && r.csp && r.csp.length === 0,
+  hypso: r.hypso && r.hypso.tiles > 0 && r.hypso.code === 16 && r.hypso.file === true && r.hypsoRun3 && r.hypsoRun3.on && r.hypsoRun3.box
 };
 console.log(JSON.stringify({ pass, r, errs, log: log.split('\n').filter(l => /error|Error/.test(l) && !/Debugger|inspector|DevTools/.test(l)).slice(0, 8) }, null, 1));
 console.log(Object.values(pass).every(Boolean) && !errs.length ? 'ALL PASS' : 'FAILED ' + Object.keys(pass).filter(k => !pass[k]).join(', '));

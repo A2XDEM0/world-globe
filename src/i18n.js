@@ -57,6 +57,8 @@ const I18N = {
     editLayout: '编辑显示内容', editDone: '完成', layoutReset: '恢复默认', layoutResetDone: '侧栏已恢复默认布局。',
     editNote: '点卡片或某一行右边的眼睛可以隐藏它，箭头调整卡片顺序，双向箭头把卡片移到另一侧。点“完成”后，隐藏的内容就不再显示。',
     hideItem: '隐藏“{name}”', showItem: '显示“{name}”', moveUp: '“{name}”上移', moveDown: '“{name}”下移', moveLeft: '把“{name}”移到左侧', moveRight: '把“{name}”移到右侧',
+    tHypso: '分层设色（海拔和水深）', legendLand: '陆地海拔（米）', legendSea: '海洋水深（米）', sea: '海洋', elev: '海拔 {r}', depth: '水深 {r}',
+    bandRange: '{a}–{b} 米', bandBelow: '{v} 米以下', bandAbove: '{v} 米以上', hypsoFail: '高程数据没有加载出来，关掉“分层设色”再打开一次可以重试。',
     untitled: '未命名'
   },
   en: {
@@ -115,6 +117,8 @@ const I18N = {
     editLayout: 'Choose what’s shown', editDone: 'Done', layoutReset: 'Reset layout', layoutResetDone: 'The sidebars are back to their default layout.',
     editNote: 'Use the eye beside a card or a row to hide it, the arrows to reorder cards, and the double arrow to move a card to the other side. Hidden things disappear once you press Done.',
     hideItem: 'Hide “{name}”', showItem: 'Show “{name}”', moveUp: 'Move “{name}” up', moveDown: 'Move “{name}” down', moveLeft: 'Move “{name}” to the left', moveRight: 'Move “{name}” to the right',
+    tHypso: 'Hypsometric tints (elevation and depth)', legendLand: 'Land elevation (m)', legendSea: 'Sea depth (m)', sea: 'Sea', elev: 'elevation {r}', depth: 'depth {r}',
+    bandRange: '{a}–{b} m', bandBelow: 'below {v} m', bandAbove: 'over {v} m', hypsoFail: 'The elevation data did not load. Switch the tints off and on again to retry.',
     untitled: 'Untitled'
   }
 };

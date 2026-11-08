@@ -44,6 +44,14 @@ La barre du haut bascule entre chinois et anglais : boutons, aides, noms de pays
 
 ![Interface en anglais avec le thème sombre, le globe tourné vers l'Asie](docs/images/dark.jpg)
 
+### Teintes hypsométriques
+
+Cochez **Hypsometric tints** sous **Layers**, dans la barre de gauche : les terres non coloriées prennent la couleur de leur altitude et la mer celle de sa profondeur, avec une légende sous l'interrupteur. Neuf paliers pour les terres (limites à 200, 500, 1 000, 1 500, 2 000, 3 000, 4 000 et 5 000 m), huit pour la mer (200, 1 000, 2 000 … 6 000 m). Les couleurs restent douces, et les pays et divisions coloriés passent par-dessus comme d'habitude. Au survol, la ligne d'information indique aussi le palier d'altitude ou de profondeur.
+
+L'altitude vient d'ETOPO 2022 (NOAA), à une minute d'arc, la résolution raster de la carte au 1:10m. Le globe commence avec une vue d'ensemble à quatre minutes d'arc ; dès qu'une de ses cellules couvrirait plus de deux pixels d'écran, la partie visible passe aux tuiles à une minute d'arc (15° × 15°, chargées à la demande), et les cartes à plat font de même. La limite entre terre et mer est toujours le trait de côte de la carte : les terres sous le niveau de la mer dans les données prennent le palier le plus bas, et les cellules côtières au-dessus du niveau de la mer le palier marin le moins profond. Les exports PNG et SVG incluent les teintes ; en SVG, c'est une image raster intégrée.
+
+![Teintes hypsométriques : Asie centrale, plateau tibétain et Himalaya, avec l'Inde coloriée en hachures bleues](docs/images/hypso.jpg)
+
 ### Barres latérales et disposition
 
 La page tient sur un seul écran et ne défile jamais. Les outils sont dans la barre de gauche (blocs, calques, thème de l'interface, export et configuration), les couleurs dans celle de droite (pinceaux, couleur en cours, couleurs de la carte). Chaque barre se replie en un rail étroit (raccourcis `[` et `]`), et chaque carte se replie sous son titre. Le crayon en haut d'une barre lance l'édition : masquer des cartes entières ou de simples lignes (un bloc dont on ne se sert jamais, par exemple), réordonner les cartes ou en passer une de l'autre côté ; **Reset layout** rétablit la disposition par défaut. La disposition est mémorisée localement (dans le fichier de réglages pour l'application de bureau) et revient à l'ouverture suivante. Sous 900 px de large, les barres s'ouvrent par-dessus la carte, une à la fois.
@@ -76,17 +84,18 @@ Ce projet ne représente pas les frontières reconnues internationalement, ni la
 | Frontière interallemande, limite de Berlin-Ouest (1951–1990) | OpenHistoricalMap, relation 2692241 | CC0 |
 | Capitales (destination d'une recherche) | Natural Earth 1:10m, lieux peuplés, plus 19 petits territoires ajoutés à la main | Domaine public |
 | Drapeaux | flag-icons | MIT |
+| Altitude et profondeur (teintes hypsométriques) | NOAA ETOPO 2022, 60 secondes d'arc, surface des glaces | Domaine public |
 | Position du dixième trait | D'après les géodonnées DataV d'Alibaba Cloud, approximative | Conditions non vérifiées |
 
 Les données cartographiques ne sont pas dans le dépôt ; les scripts ci-dessous les téléchargent et les construisent.
 
 ## Lancer et construire
 
-Il faut Node.js (développé avec la version 24) et environ 300 Mo d'espace disque. La première fois, lancez dans l'ordre :
+Il faut Node.js (développé avec la version 24) et environ 800 Mo d'espace disque. La première fois, lancez dans l'ordre :
 
 ```sh
 npm install
-npm run fetch          # télécharge les données brutes dans raw/, environ 220 Mo
+npm run fetch          # télécharge les données brutes dans raw/, environ 690 Mo
 npm run prepare-data   # construit les fichiers intermédiaires
 npm run build          # construit dist/data et dist/index.html, environ 20 s
 npm run serve          # aperçu local : http://127.0.0.1:8765/wrap.html
@@ -96,13 +105,13 @@ Si seuls des fichiers de `src/` ont changé, `npm run assemble` suffit ; il cons
 
 Bureau : `npm run desktop` lance l'application, et `npm run dist:mac` produit un dmg et un zip pour Apple Silicon (environ 125 Mo chacun, dont 50 Mo de données) dans `release/`. L'application n'est pas encore signée ni notariée : la première fois qu'on l'ouvre sur un autre Mac, il faut faire un clic droit et choisir **Ouvrir**, ou l'autoriser dans **Réglages Système › Confidentialité et sécurité**. `npm run dist:win` produit depuis un Mac la version Windows x64 : un installateur, `world-globe-1.0.0-x64-setup.exe` (environ 100 Mo), et un zip portable (environ 140 Mo). Elle n'est pas signée non plus : au premier lancement, SmartScreen la bloque ; cliquez sur **Informations complémentaires**, puis **Exécuter quand même**.
 
-Les captures du README sont produites par `node scripts/screenshots.mjs <globe|search|germany|blocs|dark>`, avec `npm run serve` lancé. Celle de l'application de bureau a été prise à la main.
+Les captures du README sont produites par `node scripts/screenshots.mjs <globe|search|germany|blocs|dark|hypso>`, avec `npm run serve` lancé. Celle de l'application de bureau a été prise à la main.
 
 ## Fonctionnement
 
 Le globe est dessiné en WebGL2 en projection orthographique, au 1:10m pendant le glissement comme au repos, à 60 images/s stables dans les trois tests de glissement ; sans WebGL2, le navigateur revient à Canvas 2D. Le survol est dessiné sur un calque Canvas 2D, et les cartes à plat sont en SVG pour s'exporter proprement. La lecture des données, l'enregistrement des fichiers et les réglages passent tous par `src/platform.js`, qui a une implémentation web et une de bureau. Bibliothèques : D3 7.9.0, TopoJSON et earcut 2.2.4.
 
-Les contours simplifiés des pays sont intégrés à la page. Les contours au 1:10m, les limites administratives et les données de premier niveau (210 fichiers) et de second niveau (201 fichiers) de chaque pays sont des fichiers séparés, chargés à l'ouverture du pays ; environ 50 Mo en tout.
+Les contours simplifiés des pays sont intégrés à la page. Les contours au 1:10m, les limites administratives et les données de premier niveau (210 fichiers) et de second niveau (201 fichiers) de chaque pays sont des fichiers séparés, chargés à l'ouverture du pays ; environ 50 Mo en tout. L'altitude des teintes est produite par `scripts/hypso.mjs` à partir d'ETOPO 2022 : chaque cellule devient un code de palier sur un octet, soit environ 1 Mo compressé pour la vue d'ensemble et environ 8 Mo pour les 288 tuiles à une minute d'arc. Le fragment shader du globe inverse la projection à sa propre position à l'écran pour trouver le palier ; les cartes à plat, le repli Canvas et les exports construisent leurs rasters sur le CPU avec la même inversion.
 
 Les données sont traitées avec mapshaper. Étapes principales :
 
@@ -131,6 +140,7 @@ scripts/             téléchargement, traitement, assemblage, captures et aper�
   build.sh             construit dist/data et assemble dist/index.html
   capitals.mjs         produit src/capitals.js depuis Natural Earth
   flags.mjs            regroupe les drapeaux flag-icons par unité dans dist/data/flags.json
+  hypso.mjs            paliers d'altitude pour les teintes hypsométriques, à partir d'ETOPO 2022 (dist/data/hypso)
   gdr-align.mjs        aligne les divisions allemandes sur la frontière interallemande, découpe l'Amt Neuhaus
   assemble.mjs         assemble dist/index.html et desktop/app/
   screenshots.mjs      prend les captures du README
@@ -138,7 +148,7 @@ scripts/             téléchargement, traitement, assemblage, captures et aper�
 test/                tests pilotant Chrome et Electron en local via puppeteer-core
   interactions.mjs     coloriage, saisie de codes, migration d'anciens réglages
   denmark.mjs          cartons des cartes à plat
-  webgl.mjs            dessin WebGL, clics, survol, zoom, export, blocs et langues (par lots)
+  webgl.mjs            dessin WebGL, clics, survol, zoom, export, blocs, langues et teintes hypsométriques (par lots)
   desktop.mjs          application de bureau : fichiers de projet, menus, export, politique de sécurité
   layout.mjs           barres latérales, cartes repliables, édition de l'affichage, page sans défilement
   bench.mjs            fluidité du glissement

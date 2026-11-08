@@ -46,6 +46,14 @@ An interactive globe for colouring countries, states and counties, with per-coun
 
 ![英文界面加深色主题，地球转到亚洲](docs/images/dark.jpg)
 
+### 分层设色
+
+左侧栏“图层”里打开“分层设色”，未涂色的陆地就按海拔、海洋按水深分层着色，图例在开关下面：陆地以 200、500、1000、1500、2000、3000、4000、5000 米为界分 9 层，海洋以 200、1000、2000……6000 米为界分 8 层。颜色压得很柔和，涂过色的国家和行政区照常盖在上面。鼠标停在地图上，读数里会多出所在位置的海拔或水深范围。
+
+高程数据是 NOAA 的 ETOPO 2022，每格 1 角分，和 1:10m 地图的栅格精度相同。地球刚打开时用 4 角分的概览图，放大到概览图的一格超过两个屏幕像素时，可见范围自动换成 1 角分的分块（每块 15°×15°，按需加载），平面图也一样。陆地和海洋的分界始终是地图自己的海岸线：数据里低于海平面的陆地显示为最低一层，海边高于海平面的格子显示为最浅一层。导出的 PNG 和 SVG 也带分层，SVG 里是嵌入的栅格图。
+
+![分层设色：中亚、青藏高原和喜马拉雅，印度涂成蓝色斜线](docs/images/hypso.jpg)
+
 ### 侧栏和布局
 
 页面固定在一屏里，不会上下滚动。工具在左侧栏：阵营、图层、界面主题、导出和配置；颜色在右侧栏：画笔、当前颜色和地图底色。两侧都能收起成一条窄栏（快捷键是 `[` 和 `]`），每张卡片点标题就能折叠。点侧栏顶部的铅笔进入编辑模式，可以隐藏整张卡片或其中某一行（比如用不到的阵营），调整卡片顺序，或者把卡片移到另一侧；“恢复默认”会还原布局。布局记在本地（桌面版记在设置文件里），下次打开照旧。窗口窄于 900 像素时，侧栏改为浮在地图上，一次展开一侧。
@@ -78,17 +86,18 @@ An interactive globe for colouring countries, states and counties, with per-coun
 | 东西德分界线、西柏林边界（1951–1990） | OpenHistoricalMap 关系 2692241 | CC0 |
 | 各国首都（搜索时转到的位置） | Natural Earth 1:10m 有人口地区，另有 19 个小领地是手工补的 | 公有领域 |
 | 国旗 | flag-icons | MIT |
+| 海拔和水深（分层设色） | NOAA ETOPO 2022，60 角秒，冰面高程 | 公有领域 |
 | 第十段线的位置 | 参考阿里云 DataV 地理数据，只是近似 | 条款未核实 |
 
 地图数据不放在仓库里，用下面的脚本下载、生成。
 
 ## 运行和构建
 
-需要 Node.js（开发时用的是 24）、约 300MB 磁盘空间，第一次使用时按顺序运行：
+需要 Node.js（开发时用的是 24）、约 800MB 磁盘空间，第一次使用时按顺序运行：
 
 ```sh
 npm install
-npm run fetch          # 下载原始数据到 raw/，约 220MB
+npm run fetch          # 下载原始数据到 raw/，约 690MB
 npm run prepare-data   # 生成中间文件
 npm run build          # 生成 dist/data 和 dist/index.html，约 20 秒
 npm run serve          # 本地预览：http://127.0.0.1:8765/wrap.html
@@ -98,13 +107,13 @@ npm run serve          # 本地预览：http://127.0.0.1:8765/wrap.html
 
 桌面版：`npm run desktop` 直接启动，`npm run dist:mac` 打包 Apple Silicon 版的 dmg 和 zip（各约 125MB，其中 50MB 是地图数据），输出到 `release/`。目前还没有签名和公证，复制到别的 Mac 上第一次打开时，要右键选择“打开”，或者在“系统设置 › 隐私与安全性”里放行。`npm run dist:win` 在 Mac 上就能交叉打包 Windows x64 版，得到安装程序 `world-globe-1.0.0-x64-setup.exe`（约 100MB）和免安装的 zip（约 140MB）。Windows 版同样没有签名，第一次运行时 SmartScreen 会拦下，点“更多信息”再点“仍要运行”即可。
 
-README 里的截图由 `node scripts/screenshots.mjs <globe|search|germany|blocs|dark>` 生成，需要先运行 `npm run serve`。桌面版那张是手动截的。
+README 里的截图由 `node scripts/screenshots.mjs <globe|search|germany|blocs|dark|hypso>` 生成，需要先运行 `npm run serve`。桌面版那张是手动截的。
 
 ## 实现方式
 
 地球用 WebGL2 和正射投影绘制，拖动和静止都是 1:10m 精度，三种拖动情况都稳定在 60 帧；浏览器不支持 WebGL2 时退回 Canvas 2D。悬停高亮画在一层 Canvas 2D 上，平面图用 SVG 绘制，方便导出。读数据、保存文件和读写配置都经过 `src/platform.js`，网页版和桌面版各有一套实现。用到的库有 D3 7.9.0、TopoJSON 和 earcut 2.2.4。
 
-简化后的国家轮廓直接嵌在页面里。1:10m 轮廓、行政区线，以及每个国家的一级（210 个文件）和二级（201 个文件）行政区数据是单独的文件，打开对应国家时才加载，总共约 50MB。
+简化后的国家轮廓直接嵌在页面里。1:10m 轮廓、行政区线，以及每个国家的一级（210 个文件）和二级（201 个文件）行政区数据是单独的文件，打开对应国家时才加载，总共约 50MB。分层设色的高程由 `scripts/hypso.mjs` 从 ETOPO 2022 生成：每格换成一个字节的分层代码，压缩后概览图约 1MB，288 块 1 角分分块共约 8MB。地球的片元着色器按自己的屏幕位置反算经纬度后取分层颜色；平面图、Canvas 回退和导出用同样的反算在 CPU 上生成栅格。
 
 数据用 mapshaper 处理，主要步骤是：
 
@@ -133,6 +142,7 @@ scripts/             数据下载、处理、组装、截图和本地预览脚�
   build.sh             生成 dist/data，并组装出 dist/index.html
   capitals.mjs         从 Natural Earth 生成 src/capitals.js
   flags.mjs            把 flag-icons 的国旗按地图单位打包成 dist/data/flags.json
+  hypso.mjs            从 ETOPO 2022 生成分层设色用的高程分层（dist/data/hypso）
   gdr-align.mjs        把德国行政区和东西德分界线对齐，切出诺伊豪斯
   assemble.mjs         组装 dist/index.html 和 desktop/app/
   screenshots.mjs      生成 README 截图
@@ -140,7 +150,7 @@ scripts/             数据下载、处理、组装、截图和本地预览脚�
 test/                用 puppeteer-core 驱动本机 Chrome 和 Electron 的测试
   interactions.mjs     涂色、代码输入、旧配置迁移
   denmark.mjs          平面图插图
-  webgl.mjs            WebGL 显示、点击、悬停、缩放、导出、阵营和中英文（分批运行）
+  webgl.mjs            WebGL 显示、点击、悬停、缩放、导出、阵营、中英文和分层设色（分批运行）
   desktop.mjs          桌面版：项目文件、菜单、导出、内容安全策略
   layout.mjs           侧栏收起、卡片折叠、编辑显示内容、页面不滚动
   bench.mjs            拖动帧率

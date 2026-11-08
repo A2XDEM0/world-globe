@@ -42,4 +42,6 @@ m $W/l.shp name=lines -simplify interval=20000 -o $G/data/admin1-lo.json format=
 m $W/adm2c.shp -filter-fields a,k,n -split a -o singles $W/a2split/ format=topojson quantization=100000
 node $R/scripts/stageC.mjs $P $W $G 2>&1 | grep -E "features|winding|admin|greenland|denmark" | cut -c1-200
 node "$R/scripts/flags.mjs"
+# elevation bands for the hypsometric tints (ETOPO 2022, one arc-minute)
+node "$R/scripts/hypso.mjs" "$P/etopo" "$G/data/hypso"
 node "$R/scripts/assemble.mjs"
