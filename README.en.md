@@ -20,7 +20,7 @@ Type a Chinese or English name or a three-letter code into the search box at the
 
 The top bar has two modes, **Paint** and **View**, and three units, **Country**, **Level 1** and **Level 2**. In Paint mode, a click gives the current unit the current colour and a second click takes it off. With Level 1 or Level 2 chosen, hovering over a country shows its region borders and the name and code of the region under the pointer. Whatever brush is selected, an Option-click (Alt-click on Windows) puts the unit straight back to unpainted.
 
-Each colour has a name, a solid or striped style and a colour value. Region colours win over country colours. On the right you can type country names or region codes to paint many at once; entries that are not found are listed separately.
+Each colour has a name, a solid or striped style and a colour value. Region colours win over country colours. In the **Current colour** card on the right you can type country names or region codes to paint many at once; entries that are not found are listed separately.
 
 Second-level codes are the country code plus a number: Cook County, home of Chicago, is `USA-0628`. Numbers follow name order within each country, so they stay the same as long as the underlying data does. There are 49,340 of them worldwide, with no duplicates. First-level codes look like `USA.US-CA`.
 
@@ -34,28 +34,32 @@ Below, the seven eastern German states are painted on their own. German regions 
 
 ### Blocs and flags
 
-Under **Blocs** on the right you can tick the EU, NATO, the Warsaw Pact, the CSTO, ASEAN, OPEC, the OAS and the Non-Aligned Movement. Each ticked bloc adds a layer of stripes to the map; countries in several blocs show their colours in turn. Expand a bloc to see its members' flags, their status and former members, or paint all members in the current colour with one click. The Warsaw Pact is shown by the territory of its time: the Soviet Union as its 15 successor states, East Germany as the eastern German states.
+Under **Blocs** in the left sidebar you can tick the EU, NATO, the Warsaw Pact, the CSTO, ASEAN, OPEC, the OAS and the Non-Aligned Movement. Each ticked bloc adds a layer of stripes to the map; countries in several blocs show their colours in turn. Expand a bloc to see its members' flags, their status and former members, or paint all members in the current colour with one click. The Warsaw Pact is shown by the territory of its time: the Soviet Union as its 15 successor states, East Germany as the eastern German states.
 
 ![Europe: NATO (teal stripes) and the Warsaw Pact (red stripes) overlaid](docs/images/blocs.jpg)
 
 ### Languages and themes
 
-The top bar switches between Chinese and English. Buttons, hints, country and region names, flat-map labels and exported images all follow. Under **Base map** you can pick the system, light or dark theme. The theme changes the interface only, never the colours of the map itself.
+The top bar switches between Chinese and English. Buttons, hints, country and region names, flat-map labels and exported images all follow. Under **Interface** in the left sidebar you can pick the system, light or dark theme. The theme changes the interface only, never the colours of the map itself.
 
 ![English interface with the dark theme, the globe turned to Asia](docs/images/dark.jpg)
 
+### Sidebars and layout
+
+The page fits one screen and never scrolls. Tools sit in the left sidebar (blocs, layers, interface theme, export and configuration) and colours in the right one (brushes, the current colour and the map colours). Either sidebar folds to a narrow rail (shortcuts `[` and `]`), and each card folds under its title. The pencil at the top of a sidebar starts editing: hide whole cards or single rows (a bloc you never use, say), reorder cards, or move a card to the other side; **Reset layout** brings the default back. The layout is remembered locally (in the settings file on the desktop) and comes back next time. Below 900 px wide, the sidebars open over the map, one at a time.
+
 ### Export, backup and import
 
-The current view can be saved as PNG or SVG, or copied as SVG code. The base map can show or hide first- and second-level region lines, region names (7–20 px), the graticule, and the inner German border with the West Berlin boundary. The ocean, background and unpainted-country colours can all be changed.
+The current view can be saved as PNG or SVG, or copied as SVG code. **Layers** in the left sidebar show or hide first- and second-level region lines, region names (7–20 px), the graticule, and the inner German border with the West Berlin boundary. **Map colours** on the right change the ocean and the background; the **Unpainted** brush changes unpainted countries.
 
 Where your colours are kept depends on the version:
 
-- **Web:** every change is saved automatically in the browser's local storage. It lives in that one browser only and is lost if the site data is cleared. To back up, expand **Configuration JSON (back up or import)** at the bottom right and save its contents as a `.json` file. To restore, click **Import .json file**, or paste the contents back and click **Apply**. Undo keeps the last 60 steps and is cleared when the page reloads.
-- **Desktop:** colours live in `.json` project files that you save yourself; the **File** menu has New, Open, Save, Save As and Open Recent. The format is the same on both sides, so a `.json` saved from the web build opens directly in the desktop app.
+- **Web:** every change is saved automatically in the browser's local storage and read back the next time you open the page. It lives in that one browser only and is lost if the site data is cleared. To back up, expand **Configuration JSON (back up or import)** under **Export this view** in the left sidebar and save its contents as a `.json` file. To restore, click **Import .json file**, or paste the contents back and click **Apply**. Undo keeps the last 60 steps and is cleared when the page reloads.
+- **Desktop:** colours live in `.json` project files. Every change is written straight back into the open file, and the app reopens your last project when it starts; an untitled project that is not a file yet is kept in the app's settings folder and comes back too. The **File** menu has New, Open, Save, Save As and Open Recent. The format is the same on both sides, so a `.json` saved from the web build opens directly in the desktop app.
 
 ### Desktop app
 
-The desktop app is the same page inside an Electron shell and works fully offline: map data, scripts and fonts are bundled with it, and a strict content security policy keeps the page off the network. On macOS the system title bar is hidden; the strip at the top of the window shows the file name, with a ● when there are unsaved changes.
+The desktop app is the same page inside an Electron shell and works fully offline: map data, scripts and fonts are bundled with it, and a strict content security policy keeps the page off the network. On macOS the system title bar is hidden; the strip at the top of the window shows the file name, with a ● while an untitled project has not been saved as a file.
 
 ![The macOS desktop app](docs/images/desktop.jpg)
 
@@ -136,6 +140,7 @@ test/                tests driving the local Chrome and Electron through puppete
   denmark.mjs          flat-map insets
   webgl.mjs            WebGL drawing, clicks, hover, zoom, export, blocs and languages (run in batches)
   desktop.mjs          desktop app: project files, menus, export, content security policy
+  layout.mjs           sidebars, folding cards, editing what shows, no page scrolling
   bench.mjs            drag frame rate
   mesh.mjs             checks the sphere triangulation in Node
 ```

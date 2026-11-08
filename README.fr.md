@@ -20,7 +20,7 @@ Le champ de recherche en haut accepte un nom chinois ou anglais, ou un code à t
 
 La barre du haut propose deux modes, **Paint** (colorier) et **View** (consulter), et trois unités, **Country**, **Level 1** et **Level 2**. En mode coloriage, un clic donne la couleur en cours à l'unité, un second clic la retire. Avec le premier ou le second niveau, survoler un pays affiche ses limites administratives ainsi que le nom et le code de la division sous le pointeur. Quel que soit le pinceau choisi, Option-clic (Alt-clic sous Windows) remet directement l'unité à l'état non colorié.
 
-Chaque couleur a un nom, un style uni ou hachuré et une valeur de couleur. La couleur d'une division l'emporte sur celle du pays. À droite, on peut saisir des noms de pays ou des codes de division pour colorier en série ; les entrées introuvables sont listées à part.
+Chaque couleur a un nom, un style uni ou hachuré et une valeur de couleur. La couleur d'une division l'emporte sur celle du pays. Dans la carte **Current colour**, à droite, on peut saisir des noms de pays ou des codes de division pour colorier en série ; les entrées introuvables sont listées à part.
 
 Les codes de second niveau sont formés du code du pays et d'un numéro : le comté de Cook, celui de Chicago, est `USA-0628`. Les numéros suivent l'ordre des noms dans chaque pays, donc ils ne changent pas tant que les données ne changent pas. Il y en a 49 340 dans le monde, sans doublon. Les codes de premier niveau s'écrivent comme `USA.US-CA`.
 
@@ -34,28 +34,32 @@ Ci-dessous, les sept Länder de l'est de l'Allemagne sont coloriés à part. Les
 
 ### Blocs et drapeaux
 
-Sous **Blocs**, à droite, on peut cocher l'UE, l'OTAN, le pacte de Varsovie, l'OTSC, l'ASEAN, l'OPEP, l'OEA et le Mouvement des non-alignés. Chaque bloc coché ajoute une couche de hachures sur la carte ; les pays de plusieurs blocs montrent leurs couleurs à tour de rôle. En dépliant un bloc, on voit les drapeaux des membres, leur statut et les anciens membres, et on peut colorier tous les membres d'un clic. Le pacte de Varsovie est montré selon le territoire de l'époque : l'URSS par ses 15 États successeurs, la RDA par les Länder de l'est de l'Allemagne.
+Sous **Blocs**, dans la barre de gauche, on peut cocher l'UE, l'OTAN, le pacte de Varsovie, l'OTSC, l'ASEAN, l'OPEP, l'OEA et le Mouvement des non-alignés. Chaque bloc coché ajoute une couche de hachures sur la carte ; les pays de plusieurs blocs montrent leurs couleurs à tour de rôle. En dépliant un bloc, on voit les drapeaux des membres, leur statut et les anciens membres, et on peut colorier tous les membres d'un clic. Le pacte de Varsovie est montré selon le territoire de l'époque : l'URSS par ses 15 États successeurs, la RDA par les Länder de l'est de l'Allemagne.
 
 ![Europe : l'OTAN (hachures bleu-vert) et le pacte de Varsovie (hachures rouges) superposés](docs/images/blocs.jpg)
 
 ### Langues et thèmes
 
-La barre du haut bascule entre chinois et anglais : boutons, aides, noms de pays et de divisions, étiquettes des cartes à plat et images exportées suivent. Sous **Base map**, on choisit le thème du système, clair ou sombre. Le thème ne change que l'interface, jamais les couleurs de la carte elle-même.
+La barre du haut bascule entre chinois et anglais : boutons, aides, noms de pays et de divisions, étiquettes des cartes à plat et images exportées suivent. Sous **Interface**, dans la barre de gauche, on choisit le thème du système, clair ou sombre. Le thème ne change que l'interface, jamais les couleurs de la carte elle-même.
 
 ![Interface en anglais avec le thème sombre, le globe tourné vers l'Asie](docs/images/dark.jpg)
 
+### Barres latérales et disposition
+
+La page tient sur un seul écran et ne défile jamais. Les outils sont dans la barre de gauche (blocs, calques, thème de l'interface, export et configuration), les couleurs dans celle de droite (pinceaux, couleur en cours, couleurs de la carte). Chaque barre se replie en un rail étroit (raccourcis `[` et `]`), et chaque carte se replie sous son titre. Le crayon en haut d'une barre lance l'édition : masquer des cartes entières ou de simples lignes (un bloc dont on ne se sert jamais, par exemple), réordonner les cartes ou en passer une de l'autre côté ; **Reset layout** rétablit la disposition par défaut. La disposition est mémorisée localement (dans le fichier de réglages pour l'application de bureau) et revient à l'ouverture suivante. Sous 900 px de large, les barres s'ouvrent par-dessus la carte, une à la fois.
+
 ### Export, sauvegarde et import
 
-La vue en cours peut être enregistrée en PNG ou en SVG, ou copiée sous forme de code SVG. Le fond de carte peut afficher ou masquer les limites de premier et de second niveau, les noms des divisions (7 à 20 px), le canevas, ainsi que la frontière interallemande et la limite de Berlin-Ouest. Les couleurs de l'océan, du fond et des pays non coloriés sont modifiables.
+La vue en cours peut être enregistrée en PNG ou en SVG, ou copiée sous forme de code SVG. **Layers**, dans la barre de gauche, affiche ou masque les limites de premier et de second niveau, les noms des divisions (7 à 20 px), le canevas, ainsi que la frontière interallemande et la limite de Berlin-Ouest. **Map colours**, à droite, change les couleurs de l'océan et du fond ; le pinceau **Unpainted** change celle des pays non coloriés.
 
 L'endroit où vos couleurs sont conservées dépend de la version :
 
-- **Web :** chaque modification est enregistrée automatiquement dans le stockage local du navigateur. Elle n'existe que dans ce navigateur et disparaît si l'on efface les données du site. Pour sauvegarder, dépliez **Configuration JSON (back up or import)** en bas à droite et enregistrez son contenu dans un fichier `.json`. Pour restaurer, cliquez sur **Import .json file**, ou recollez le contenu et cliquez sur **Apply**. L'annulation garde les 60 dernières étapes et se vide au rechargement de la page.
-- **Bureau :** les couleurs sont dans des fichiers de projet `.json` que vous enregistrez vous-même ; le menu **File** propose New, Open, Save, Save As et Open Recent. Le format est le même des deux côtés : un `.json` enregistré depuis la version web s'ouvre directement dans l'application.
+- **Web :** chaque modification est enregistrée automatiquement dans le stockage local du navigateur et relue à l'ouverture suivante. Elle n'existe que dans ce navigateur et disparaît si l'on efface les données du site. Pour sauvegarder, dépliez **Configuration JSON (back up or import)** sous **Export this view**, dans la barre de gauche, et enregistrez son contenu dans un fichier `.json`. Pour restaurer, cliquez sur **Import .json file**, ou recollez le contenu et cliquez sur **Apply**. L'annulation garde les 60 dernières étapes et se vide au rechargement de la page.
+- **Bureau :** les couleurs sont dans des fichiers de projet `.json`. Chaque modification est écrite aussitôt dans le fichier ouvert, et l'application rouvre le dernier projet au démarrage ; un projet sans titre, pas encore enregistré comme fichier, est conservé dans le dossier de réglages de l'application et revient lui aussi. Le menu **File** propose New, Open, Save, Save As et Open Recent. Le format est le même des deux côtés : un `.json` enregistré depuis la version web s'ouvre directement dans l'application.
 
 ### Application de bureau
 
-L'application de bureau est la même page dans une enveloppe Electron et fonctionne entièrement hors ligne : données, scripts et polices sont embarqués, et une politique de sécurité du contenu stricte empêche tout accès au réseau. Sous macOS, la barre de titre du système est masquée ; la bande en haut de la fenêtre affiche le nom du fichier, avec un ● quand il y a des modifications non enregistrées.
+L'application de bureau est la même page dans une enveloppe Electron et fonctionne entièrement hors ligne : données, scripts et polices sont embarqués, et une politique de sécurité du contenu stricte empêche tout accès au réseau. Sous macOS, la barre de titre du système est masquée ; la bande en haut de la fenêtre affiche le nom du fichier, avec un ● tant qu'un projet sans titre n'a pas été enregistré comme fichier.
 
 ![L'application de bureau sous macOS](docs/images/desktop.jpg)
 
@@ -136,6 +140,7 @@ test/                tests pilotant Chrome et Electron en local via puppeteer-co
   denmark.mjs          cartons des cartes à plat
   webgl.mjs            dessin WebGL, clics, survol, zoom, export, blocs et langues (par lots)
   desktop.mjs          application de bureau : fichiers de projet, menus, export, politique de sécurité
+  layout.mjs           barres latérales, cartes repliables, édition de l'affichage, page sans défilement
   bench.mjs            fluidité du glissement
   mesh.mjs             vérifie la triangulation de la sphère dans Node
 ```

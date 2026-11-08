@@ -250,8 +250,8 @@ try {
 
   if (BATCH === 'i18n') {
     await p.click('#lang-en + span'); await sleep(300);
-    const en = await p.evaluate(() => ({ h1: document.querySelector('h1').textContent, hint: $('readout').textContent, unit: document.querySelector('[data-i18n="unit1"]').textContent, note: document.querySelector('.note[data-i18n="note"]').textContent.slice(0, 30), lang: document.documentElement.lang, pref: platform.pref('lang'), ids: $('cat-ids').value }));
-    check('界面切到英文', en.h1 === 'World Color Globe' && en.hint.startsWith('Click a country') && en.unit === 'Level 1' && en.note.startsWith('Drawn with custom borders') && en.lang === 'en' && en.pref === 'en', JSON.stringify(en));
+    const en = await p.evaluate(() => ({ h1: document.querySelector('h1').textContent, hint: $('readout').textContent, unit: document.querySelector('[data-i18n="unit1"]').textContent, side: $('left-title').textContent + '/' + $('ed-title').textContent, lang: document.documentElement.lang, pref: platform.pref('lang'), ids: $('cat-ids').value }));
+    check('界面切到英文', en.h1 === 'World Color Globe' && en.hint.startsWith('Click a country') && en.unit === 'Level 1' && en.side === 'Tools/Current colour' && en.lang === 'en' && en.pref === 'en', JSON.stringify(en));
     await p.evaluate(() => { cfg.cats[0].ids = ['DEU']; renderAll(); setUnit(1); openCountry('DEU'); });
     await p.waitForFunction(() => document.querySelectorAll('#flat text').length > 3, { timeout: 10000 });
     const flat = await p.evaluate(() => ({ title: $('flat-name').textContent, flag: !!$('flat-name').querySelector('img.flag'), labels: [...$('flat').querySelectorAll('text')].map(n => n.textContent).slice(0, 8), paint: $('flat-paint').textContent }));

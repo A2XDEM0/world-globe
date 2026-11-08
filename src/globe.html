@@ -4,8 +4,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400&family=IBM+Plex+Sans:wght@400;500;600&family=Inter:wght@500;600&display=swap">
 <style>
-/* Layout: soft UI. The globe or country sheet is a rounded card on a pale workspace, tools above and brushes below, settings in cards
-   beside it. No hard borders: edges come from tinted, blurred shadows. The map keeps its own colours whatever the theme. */
+/* Layout: soft UI, one screen that never scrolls. Tools sit in a sidebar on the left and colours in one on the right; both fold
+   down to a narrow rail, and only their own columns scroll. The globe or country sheet fills the space between, with the readout
+   and messages floating on it. Settings come in cards that fold away, and the reader chooses which cards and rows are shown.
+   No hard borders: edges come from tinted, blurred shadows. The map keeps its own colours whatever the theme. */
 :root {
   --bg: #f8fafc; --surface: #ffffff; --field: #f9fafb; --fg: #1f2937; --muted: #6b7280; --line: #e5e7eb;
   --accent: #5b5fc7; --on-accent: #ffffff; --accent-soft: rgb(91 95 199 / .1); --danger: #b4405a;
@@ -17,6 +19,7 @@
   --press: inset 0 2px 6px rgb(100 116 139 / .18);
   --halo: 0 0 0 2px rgb(91 95 199 / .5), 0 0 0 7px rgb(91 95 199 / .12);
   --ease: cubic-bezier(.45, 0, .55, 1);
+  --side: 300px; --rail: 56px;
   --ui: "IBM Plex Sans", "PingFang SC", "Noto Sans SC", "Microsoft YaHei", system-ui, sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
 }
@@ -24,9 +27,17 @@
 :root[data-theme="dark"] { --bg: #151923; --surface: #1d2230; --field: #252b3b; --fg: #e5e7eb; --muted: #9ca3af; --line: #2f3646; --accent: #a5b4fc; --on-accent: #1e1b4b; --accent-soft: rgb(129 140 248 / .14); --danger: #f0a3b1; --shadow-md: 0 4px 6px -1px rgb(6 8 16 / .35), 0 2px 4px -2px rgb(6 8 16 / .35); --shadow-lg: 0 10px 15px -3px rgb(6 8 16 / .4), 0 4px 6px -4px rgb(6 8 16 / .4); --shadow-xl: 0 20px 25px -5px rgb(6 8 16 / .45), 0 8px 10px -6px rgb(6 8 16 / .45); --shadow-hover: 0 20px 25px -5px rgb(129 140 248 / .22), 0 8px 10px -6px rgb(129 140 248 / .22); --shadow-accent: 0 10px 15px -3px rgb(129 140 248 / .25), 0 4px 6px -4px rgb(129 140 248 / .25); --press: inset 0 2px 6px rgb(6 8 16 / .45); --halo: 0 0 0 2px rgb(165 180 252 / .55), 0 0 0 7px rgb(165 180 252 / .14); color-scheme: dark }
 * { box-sizing: border-box }
 [hidden] { display: none !important }
+html, body { height: 100%; overflow: hidden; overscroll-behavior: none }
 body { margin: 0; background: var(--bg); color: var(--fg); font: 400 14px/1.6 var(--ui) }
-.app { display: grid; gap: 24px 32px; grid-template-columns: minmax(0, 1fr) 360px; grid-template-areas: "top top" "stage panel"; max-width: 1560px; margin-inline: auto; padding-block: 24px 48px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)) }
-.top { grid-area: top; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "brand bar tools"; align-items: center; gap: 16px 32px }
+/* the sidebar columns animate between full width and the rail */
+@property --lw { syntax: "<length>"; inherits: true; initial-value: 300px }
+@property --rw { syntax: "<length>"; inherits: true; initial-value: 300px }
+.app { --lw: var(--side); --rw: var(--side); position: relative; height: 100vh; height: 100dvh; display: grid; gap: 16px 20px; grid-template-columns: var(--lw) minmax(0, 1fr) var(--rw); grid-template-rows: auto minmax(0, 1fr); grid-template-areas: "top top top" "left stage right"; padding-block: 16px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); transition: --lw .28s var(--ease), --rw .28s var(--ease) }
+.app.left-shut { --lw: var(--rail) }
+/* the saved layout is put in place without animating */
+.app.still, .app.still * { transition: none !important }
+.app.right-shut { --rw: var(--rail) }
+.top { grid-area: top; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "brand bar tools"; align-items: center; gap: 12px 32px }
 .top > .brand { grid-area: brand; white-space: nowrap }
 .top > .toolbar { grid-area: bar }
 .top > .row { grid-area: tools; justify-content: flex-end }
@@ -36,15 +47,14 @@ h1 { margin: 0; font-size: 22px; font-weight: 600; text-wrap: balance }
 .brand { display: flex; align-items: center; gap: 12px }
 /* the mark sits on a round tinted badge */
 .brand .mark { width: 44px; height: 44px; padding: 8px; flex: none; border-radius: 50%; background: var(--accent-soft); color: var(--fg) }
-.stage { grid-area: stage; align-self: start; display: grid; gap: 20px; min-width: 0; position: sticky; top: 24px }
-.panel { grid-area: panel; display: grid; gap: 24px; align-content: start; min-width: 0 }
+.stage { grid-area: stage; display: grid; min-width: 0; min-height: 0 }
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; min-height: 44px }
 .toolbar .seg { width: 196px; flex: none }
 .seg.three { grid-template-columns: repeat(3, 1fr) }
 .toolbar .seg.three { width: 216px }
 .toolbar .grow { flex: 1 1 200px; min-width: 0; position: relative }
 .top .seg.lang { width: 124px }
-.find-pop { position: absolute; z-index: 5; inset: calc(100% + 8px) 0 auto; margin: 0; padding: 6px; list-style: none; background: var(--surface); border-radius: 16px; box-shadow: var(--shadow-xl) }
+.find-pop { position: absolute; z-index: 6; inset: calc(100% + 8px) 0 auto; margin: 0; padding: 6px; list-style: none; background: var(--surface); border-radius: 16px; box-shadow: var(--shadow-xl) }
 .find-pop li { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 8px 12px; border-radius: 12px; cursor: pointer; transition: background-color .2s var(--ease) }
 .find-pop li[aria-selected="true"], .find-pop li:hover { background: var(--accent-soft) }
 .find-pop .sub { margin-left: auto; color: var(--muted); font-size: 12px }
@@ -53,7 +63,7 @@ h1 { margin: 0; font-size: 22px; font-weight: 600; text-wrap: balance }
 .bloc { display: grid; gap: 6px }
 .bloc .check { justify-content: flex-start }
 .bloc .years { color: var(--muted); font-size: 12px }
-.bloc .n { margin-left: auto; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums }
+.bloc .n { margin-left: auto; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap }
 .bloc .sw { width: 18px; height: 18px; border-radius: 6px }
 .bloc details > div { margin: 8px 0 0 26px; gap: 10px }
 .bloc summary { margin-left: 26px; font-size: 12px; font-weight: 500; color: var(--muted) }
@@ -64,7 +74,7 @@ h1 { margin: 0; font-size: 22px; font-weight: 600; text-wrap: balance }
 .member-flags button.status { opacity: .6 }
 .member-flags .chip-text { padding: 2px 8px; background: var(--field) }
 .flat-name { flex: 1 1 120px; min-width: 0; margin: 0; font-size: 17px; font-weight: 600 }
-.sheet { position: relative; margin: 0; width: 100%; height: clamp(340px, calc(100vh - 280px), 62vw); border-radius: 24px; background: var(--surface); box-shadow: var(--shadow-xl); overflow: hidden; transition: box-shadow .3s var(--ease) }
+.sheet { position: relative; margin: 0; width: 100%; height: 100%; min-height: 0; border-radius: 24px; background: var(--surface); box-shadow: var(--shadow-xl); overflow: hidden; transition: box-shadow .3s var(--ease) }
 .sheet canvas, #flat { position: absolute; inset: 0; width: 100%; height: 100%; display: block }
 #hl { cursor: grab; touch-action: none; outline: none }
 #hl.dragging { cursor: grabbing }
@@ -80,26 +90,88 @@ h1 { margin: 0; font-size: 22px; font-weight: 600; text-wrap: balance }
 /* disabled stays opaque, so it does not turn muddy over the map */
 .zoombar button:disabled { color: var(--muted); box-shadow: var(--shadow-md); cursor: default }
 #flat .nohit { pointer-events: none }
+/* what floats on the map: the readout and the frame meter at the bottom left, loading notes and messages at the top */
+.hud { position: absolute; z-index: 2; display: flex; flex-direction: column; gap: 8px; pointer-events: none }
+.hud.bottom { left: 14px; bottom: 14px; align-items: flex-start; max-width: min(720px, calc(100% - 28px)) }
+.hud.top { top: 14px; left: 50%; translate: -50% 0; align-items: center; width: max-content; max-width: calc(100% - 160px) }
+.pill { margin: 0; padding: 6px 12px; border-radius: 12px; background: var(--surface); color: var(--fg); font-size: 12px; line-height: 1.5; box-shadow: var(--shadow-md); opacity: .95 }
+.pill:empty { display: none }
+#readout .flag { margin-right: 2px }
+#load-note { color: var(--muted) }
+#msg { max-width: 560px; text-align: center; opacity: 0; translate: 0 -6px; visibility: hidden; transition: opacity .25s var(--ease), translate .25s var(--ease), visibility 0s .25s }
+#msg.show { opacity: .97; translate: 0 0; visibility: visible; transition: opacity .25s var(--ease), translate .25s var(--ease) }
 /* the desktop app on macOS hides the system title bar; this strip carries the window controls, the file name and the drag area */
 .titlebar { position: fixed; inset: 0 0 auto; height: 40px; z-index: 10; display: flex; align-items: center; justify-content: center; padding-inline: 88px; background: var(--bg); color: var(--muted); font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; -webkit-app-region: drag; user-select: none }
-:root.titlebar-inset .app { padding-top: 52px }
-:root.titlebar-inset .stage { top: 52px }
-.fps { position: absolute; left: 14px; bottom: 14px; z-index: 2; margin: 0; padding: 4px 12px; border-radius: 12px; background: var(--surface); color: var(--muted); font: 12px/1.5 var(--mono); font-variant-numeric: tabular-nums; pointer-events: none; opacity: .94; box-shadow: var(--shadow-md) }
-.brushes { display: flex; flex-wrap: wrap; gap: 12px }
-.chip { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; padding: 6px 14px 6px 8px; border: 0; border-radius: 16px; background: var(--surface); color: var(--fg); font: inherit; cursor: pointer; box-shadow: var(--shadow-lg); transition: transform .2s var(--ease), box-shadow .2s var(--ease) }
-.chip:hover { transform: translateY(-2px); box-shadow: var(--shadow-hover) }
-.chip:active { transform: scale(.97); box-shadow: var(--press) }
-.chip[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--accent), var(--shadow-hover); font-weight: 500 }
-.chip .n { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 12px }
-.chip.add { padding-left: 14px; background: transparent; color: var(--muted); box-shadow: inset 0 0 0 1.5px var(--line) }
+:root.titlebar-inset .app { padding-top: 48px }
+.fps { color: var(--muted); font-family: var(--mono); font-variant-numeric: tabular-nums }
+
+/* ---- sidebars ---- */
+.side { grid-area: left; position: relative; z-index: 3; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); gap: 12px; min-width: 0; min-height: 0 }
+.side.right { grid-area: right }
+.side-head { display: flex; align-items: center; gap: 8px; min-width: 0 }
+.side.right .side-head { flex-direction: row-reverse }
+.side-title { flex: 1; min-width: 0; margin: 0; color: var(--muted); font-size: 13px; font-weight: 600; letter-spacing: .02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.side.right .side-title { text-align: right }
+/* the column scrolls on its own; the cards keep room for their shadows. It keeps its width while the column folds, sliding out
+   past the window edge instead of squeezing its contents. */
+.side-body { width: calc(var(--side) + 24px); min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 14px; margin: -4px -12px 0; padding: 4px 12px 24px; scrollbar-width: thin; scrollbar-color: var(--line) transparent; transition: opacity .2s var(--ease), visibility 0s }
+.side.left .side-body { justify-self: end }
+.side.right .side-body { justify-self: start }
+.side.shut .side-body { opacity: 0; visibility: hidden; transition: opacity .15s var(--ease), visibility 0s .28s }
+.side.shut .side-head { flex-direction: column }
+.side.shut .side-title { flex: none; writing-mode: vertical-rl; padding-block: 4px; cursor: pointer; overflow: visible }
+.side.shut .edit-toggle { display: none }
+.icon-btn { width: 44px; height: 44px; flex: none; display: grid; place-items: center; padding: 0; border: 0; border-radius: 16px; background: var(--surface); color: var(--fg); cursor: pointer; box-shadow: var(--shadow-lg); transition: transform .2s var(--ease), box-shadow .2s var(--ease), background-color .2s var(--ease), color .2s var(--ease) }
+.icon-btn svg { width: 20px; height: 20px }
+.icon-btn:hover { transform: translateY(-2px); box-shadow: var(--shadow-hover) }
+.icon-btn:active { transform: scale(.95); box-shadow: var(--press) }
+.icon-btn[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); box-shadow: var(--shadow-accent) }
+.side-toggle svg { transition: rotate .28s var(--ease) }
+.side.right .side-toggle svg, .side.left.shut .side-toggle svg { rotate: 180deg }
+.side.right.shut .side-toggle svg { rotate: 0deg }
+/* a card per group of settings; its title folds it away */
+.sec { flex: none; border-radius: 20px; background: var(--surface); box-shadow: var(--shadow-lg) }
+.sec-head { display: flex; align-items: center; gap: 2px; padding: 4px 6px }
+.sec-h { flex: 1; min-width: 0; margin: 0; font-size: 15px; font-weight: 600 }
+.sec-toggle { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 0 10px 0 14px; border: 0; border-radius: 14px; background: none; color: var(--fg); font: inherit; text-align: left; cursor: pointer; transition: background-color .2s var(--ease) }
+.sec-toggle:hover { background: var(--accent-soft) }
+.sec-toggle span { flex: 1; min-width: 0 }
+.sec-toggle svg { width: 18px; height: 18px; flex: none; color: var(--muted); transition: rotate .25s var(--ease) }
+.sec.closed .sec-toggle svg { rotate: -90deg }
+.sec-body { display: grid; grid-template-rows: 1fr; transition: grid-template-rows .25s var(--ease) }
+.sec.closed .sec-body { grid-template-rows: 0fr }
+.sec-inner { min-height: 0; overflow: hidden }
+.sec-pad { display: grid; gap: 16px; padding: 4px 20px 20px }
+.sec-tools { display: none; flex: none; gap: 2px }
+.tool { width: 32px; height: 32px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 10px; background: none; color: var(--muted); cursor: pointer; transition: background-color .2s var(--ease), color .2s var(--ease) }
+.tool svg { width: 18px; height: 18px }
+.tool:hover:not(:disabled) { background: var(--accent-soft); color: var(--accent) }
+.tool:disabled { opacity: .35; cursor: default }
+.tool[aria-pressed="false"] { color: var(--danger) }
+/* editing what shows: every card and every marked row gets an eye; what is switched off disappears once editing ends */
+.edit-bar { display: none; flex: none; gap: 10px; padding: 16px 18px; border-radius: 20px; background: var(--accent-soft) }
+.edit-bar .row { justify-content: flex-start }
+.item { position: relative; min-width: 0 }
+.item > .eye { display: none; position: absolute; top: -2px; right: -6px }
+.app.editing .edit-bar { display: grid }
+.app.editing .sec-tools { display: flex }
+.app.editing .item { padding-right: 32px }
+.app.editing .item > .eye { display: grid }
+.app.editing .item::before { content: ""; position: absolute; inset: -4px -8px; border-radius: 12px; box-shadow: inset 0 0 0 1px var(--line); pointer-events: none }
+.app:not(.editing) .is-off { display: none !important }
+.app.editing .sec.is-off { opacity: .55; box-shadow: inset 0 0 0 1.5px var(--line) }
+.app.editing .item.is-off > :not(.eye) { opacity: .4 }
+/* brushes: one row per colour */
+.brushes { display: grid; gap: 8px }
+.chip { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 6px 14px 6px 8px; border: 0; border-radius: 16px; background: var(--field); color: var(--fg); font: inherit; text-align: left; cursor: pointer; transition: transform .2s var(--ease), box-shadow .2s var(--ease), background-color .2s var(--ease) }
+.chip:hover { background: var(--surface); box-shadow: var(--shadow-hover) }
+.chip:active { transform: scale(.98); box-shadow: var(--press) }
+.chip[aria-pressed="true"] { background: var(--surface); box-shadow: 0 0 0 2px var(--accent), var(--shadow-hover); font-weight: 500 }
+.chip > span:nth-child(2) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.chip .n { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 12px; white-space: nowrap }
+.chip.add { justify-content: center; padding-left: 14px; background: transparent; color: var(--muted); box-shadow: inset 0 0 0 1.5px var(--line) }
 .chip.add:hover { background: var(--accent-soft); color: var(--accent); box-shadow: inset 0 0 0 1.5px transparent }
 .sw { width: 24px; height: 24px; flex: none; border: 1px solid rgb(31 41 55 / .14); border-radius: 8px }
-.meta { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 16px; margin: 0; padding-inline: 4px; color: var(--muted); font-size: 12px }
-#readout { min-height: 18px; color: var(--fg) }
-section { display: grid; gap: 16px; min-width: 0 }
-/* each group of settings is a card */
-.panel section { padding: 24px; border-radius: 24px; background: var(--surface); box-shadow: var(--shadow-xl) }
-h2 { margin: 0; font-size: 15px; font-weight: 600 }
 .field { display: grid; gap: 6px; min-width: 0 }
 .field > label, .field > .lab { color: var(--muted); font-size: 12px }
 input[type="text"], input[type="search"], textarea { width: 100%; min-width: 0; min-height: 44px; padding: 10px 14px; border: 0; border-radius: 16px; background: var(--field); color: var(--fg); font: inherit; transition: background-color .2s var(--ease), box-shadow .2s var(--ease) }
@@ -115,7 +187,7 @@ input[type="color"] { width: 44px; height: 44px; padding: 6px; border: 0; border
 input[type="color"]::-webkit-color-swatch-wrapper { padding: 0 }
 input[type="color"]::-webkit-color-swatch { border: 0; border-radius: 10px }
 .seg { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border-radius: 16px; background: var(--surface); box-shadow: var(--shadow-lg) }
-.panel .seg { background: var(--field); box-shadow: none }
+.side .seg { background: var(--field); box-shadow: none }
 .seg label { display: flex; align-items: center; justify-content: center; min-height: 36px; padding: 4px 8px; border-radius: 12px; text-align: center; cursor: pointer; transition: background-color .2s var(--ease), color .2s var(--ease), box-shadow .2s var(--ease) }
 .seg label:hover { background: var(--accent-soft) }
 .seg label:active { box-shadow: var(--press) }
@@ -124,7 +196,7 @@ input[type="color"]::-webkit-color-swatch { border: 0; border-radius: 10px }
 .seg label:has(input:checked) { background: var(--accent); color: var(--on-accent); box-shadow: var(--shadow-accent) }
 .seg label:has(input:focus-visible) { box-shadow: var(--halo) }
 .check { display: flex; align-items: center; gap: 10px; min-height: 28px; cursor: pointer }
-.check input { width: 16px; height: 16px; accent-color: var(--accent) }
+.check input { width: 16px; height: 16px; flex: none; accent-color: var(--accent) }
 .range { display: grid; grid-template-columns: minmax(0, 1fr) 44px; gap: 10px; align-items: center }
 .range input { width: 100%; accent-color: var(--accent) }
 .range output { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; text-align: right }
@@ -132,9 +204,9 @@ input[type="color"]::-webkit-color-swatch { border: 0; border-radius: 10px }
 .btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: var(--shadow-hover) }
 .btn:active:not(:disabled) { transform: scale(.97); box-shadow: var(--press) }
 .btn:disabled { opacity: .5; cursor: default }
-.panel .btn { background: var(--field); box-shadow: none }
-.panel .btn:hover:not(:disabled) { background: var(--surface); box-shadow: var(--shadow-hover) }
-.btn.primary, .panel .btn.primary { background: var(--accent); color: var(--on-accent); box-shadow: var(--shadow-accent) }
+.side .btn { background: var(--field); box-shadow: none }
+.side .btn:hover:not(:disabled) { background: var(--surface); box-shadow: var(--shadow-hover) }
+.btn.primary, .side .btn.primary { background: var(--accent); color: var(--on-accent); box-shadow: var(--shadow-accent) }
 .btn.primary:hover:not(:disabled) { background: var(--accent); box-shadow: var(--shadow-hover), var(--shadow-accent) }
 .btn.quiet { color: var(--danger); justify-self: start }
 .row { display: flex; flex-wrap: wrap; gap: 10px }
@@ -143,27 +215,38 @@ input[type="color"]::-webkit-color-swatch { border: 0; border-radius: 10px }
 summary { cursor: pointer; font-size: 13px; font-weight: 600; border-radius: 8px }
 details > div { display: grid; gap: 10px; margin-top: 14px }
 :focus-visible { outline: 2px solid rgb(91 95 199 / .55); outline-offset: 3px }
-.btn:focus-visible, .chip:focus-visible, .zoombar button:focus-visible { outline: none; box-shadow: var(--halo) }
+.btn:focus-visible, .chip:focus-visible, .zoombar button:focus-visible, .icon-btn:focus-visible, .sec-toggle:focus-visible, .tool:focus-visible { outline: none; box-shadow: var(--halo) }
 /* touch screens: every target at least 44px */
 @media (pointer: coarse) {
   .member-flags button { min-width: 44px; min-height: 44px }
   .check { min-height: 44px }
+  .tool { width: 44px; height: 44px }
   summary { padding-block: 13px }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important }
-  .btn:hover, .btn:active, .chip:hover, .chip:active, .zoombar button:hover, .zoombar button:active, .member-flags button:hover, .member-flags button:active { transform: none !important }
+  .btn:hover, .btn:active, .chip:hover, .chip:active, .zoombar button:hover, .zoombar button:active, .member-flags button:hover, .member-flags button:active, .icon-btn:hover, .icon-btn:active { transform: none !important }
 }
+/* narrow windows: the map takes the whole width and the sidebars open over it, one at a time */
 @media (max-width: 900px) {
-  .app { grid-template-columns: minmax(0, 1fr); grid-template-areas: "top" "stage" "panel" }
-  .stage { position: static }
-  .sheet { height: min(92vw, 70vh) }
-  .panel section { padding: 20px }
+  .app, .app.left-shut, .app.right-shut { grid-template-columns: minmax(0, 1fr); grid-template-areas: "top" "stage"; gap: 12px }
+  .side, .side.right { grid-area: stage; align-self: stretch; width: min(var(--side), calc(100% - 64px)); padding: 8px }
+  .side.left { justify-self: start }
+  .side.right { justify-self: end }
+  .side:not(.shut) { border-radius: 24px; background: var(--bg); box-shadow: var(--shadow-xl) }
+  .side.shut { width: auto; align-self: start }
+  .side-body { width: auto; justify-self: stretch !important; margin-inline: -8px; padding-inline: 8px }
+  .side.shut .side-body { display: none }
+  .side.shut .side-title { display: none }
+  .zoombar { top: auto; bottom: 14px }
+  .hud.bottom { max-width: calc(100% - 88px) }
+  .hud.top { max-width: calc(100% - 152px) }
+  .sec-pad { padding-inline: 16px }
 }
 </style>
 
 <div class="titlebar" id="titlebar" hidden></div>
-<main class="app">
+<main class="app still" id="app">
   <header class="top">
     <h1 class="brand"><svg class="mark" viewBox="0 0 256 256" aria-hidden="true"><path fill="var(--accent)" d="M100.28 38.18A94 94 0 0 1 168.91 43.37L162.7 49.58A51 107 0 0 1 167.55 60.45L178.98 49.02A94 94 0 0 1 194.61 61.67L174.09 82.19A51 107 0 0 1 176.58 95.42L201.98 70.02A94 94 0 0 1 212.81 87.47L178.9 121.38A51 107 0 0 1 178.81 137.19L217.31 98.69A94 94 0 0 1 221.84 122.45L195.02 149.26A103 28 0 0 1 78.36 152.53A51 107 0 0 1 100.28 38.18Z"/><path fill="currentColor" d="M20 128A108 108 0 0 1 236 128A108 108 0 0 1 20 128ZM36.21 134.15A96 21 0 0 0 75.7 145.61A53 109 0 0 1 95.47 41.94A92 92 0 0 0 36.21 134.15ZM38.25 148.24A92 92 0 0 0 95.47 214.06A53 109 0 0 1 77.19 159.04A110 35 0 0 1 38.25 148.24ZM89.81 147.27A96 21 0 0 0 166.19 147.27A39 95 0 0 0 138.66 36.62A92 92 0 0 0 117.34 36.62A39 95 0 0 0 89.81 147.27ZM91.43 161.01A39 95 0 0 0 117.34 219.38A92 92 0 0 0 138.66 219.38A39 95 0 0 0 164.57 161.01A110 35 0 0 1 91.43 161.01ZM160.53 41.94A53 109 0 0 1 180.3 145.61A96 21 0 0 0 219.79 134.15A92 92 0 0 0 160.53 41.94ZM160.53 214.06A92 92 0 0 0 217.75 148.24A110 35 0 0 1 178.81 159.04A53 109 0 0 1 160.53 214.06Z"/></svg><span data-i18n="title">世界色彩地球</span></h1>
     <div class="toolbar" id="globe-bar">
@@ -201,6 +284,62 @@ details > div { display: grid; gap: 10px; margin-top: 14px }
     </div>
   </header>
 
+  <aside class="side left" id="side-left" data-side="left" data-i18n-aria="leftTitle" aria-label="工具">
+    <div class="side-head">
+      <button class="icon-btn side-toggle" id="left-toggle" type="button" aria-controls="left-body" aria-expanded="true"></button>
+      <h2 class="side-title" id="left-title" data-i18n="leftTitle">工具</h2>
+      <button class="icon-btn edit-toggle" type="button" aria-pressed="false"></button>
+    </div>
+    <div class="side-body" id="left-body">
+      <div class="edit-bar"><p class="note" data-i18n="editNote">点卡片或某一行右边的眼睛可以隐藏它，箭头调整卡片顺序，双向箭头把卡片移到另一侧。点“完成”后，隐藏的内容就不再显示。</p><div class="row"><button class="btn primary" type="button" data-edit-done data-i18n="editDone">完成</button><button class="btn" type="button" data-layout-reset data-i18n="layoutReset">恢复默认</button></div></div>
+
+      <section class="sec" data-sec="blocs" data-title="blocsTitle">
+        <p class="note item" data-item="blocsNote" data-i18n="blocsNote">勾选的阵营在地图上叠一层斜纹；同属几个阵营的国家，各阵营的颜色轮流出现。成员截至 2026 年 11 月。</p>
+        <div class="blocs" id="blocs"></div>
+      </section>
+
+      <section class="sec" data-sec="layers" data-title="layersTitle">
+        <div class="item" data-item="admin"><label class="check"><input id="t-admin" type="checkbox"><span data-i18n="tAdmin">显示行政区线</span></label></div>
+        <div class="item" data-item="adm2"><label class="check"><input id="t-adm2" type="checkbox"><span data-i18n="tAdm2">平面图显示二级行政区线（市、县）</span></label></div>
+        <div class="item" data-item="labels"><label class="check"><input id="t-labels" type="checkbox"><span data-i18n="tLabels">平面图显示行政区名称</span></label></div>
+        <div class="field item" data-item="labelSize"><label for="label-size" data-i18n="labelSize">行政区名称字号</label>
+          <div class="range"><input id="label-size" type="range" min="7" max="20" step="0.5"><output id="label-size-out" for="label-size"></output></div>
+        </div>
+        <div class="item" data-item="grat"><label class="check"><input id="t-grat" type="checkbox"><span data-i18n="tGrat">地球显示经纬网</span></label></div>
+        <div class="item" data-item="gdr"><label class="check"><input id="t-gdr" type="checkbox"><span data-i18n="tGdr">显示东西德分界线和西柏林边界（1951–1990）</span></label></div>
+      </section>
+
+      <section class="sec" data-sec="ui" data-title="uiTitle">
+        <div class="field item" data-item="theme"><span class="lab" data-i18n="theme">界面主题（只改界面，不改地图颜色）</span>
+          <div class="seg three" role="radiogroup" data-i18n-aria="theme" aria-label="界面主题">
+            <label><input type="radio" name="theme" id="theme-system" value="system"><span data-i18n="themeSystem">跟随系统</span></label>
+            <label><input type="radio" name="theme" id="theme-light" value="light"><span data-i18n="themeLight">浅色</span></label>
+            <label><input type="radio" name="theme" id="theme-dark" value="dark"><span data-i18n="themeDark">深色</span></label>
+          </div>
+        </div>
+        <div class="item" data-item="fps"><label class="check"><input id="t-fps" type="checkbox"><span data-i18n="tFps">显示地球的帧率和每帧耗时</span></label></div>
+      </section>
+
+      <section class="sec" data-sec="export" data-title="outTitle">
+        <div class="row item" data-item="exportButtons" data-name-key="outTitle">
+          <button class="btn primary" id="save-png" data-i18n="savePng" type="button" hidden>保存 PNG</button>
+          <button class="btn" id="save-svg" data-i18n="saveSvg" type="button" hidden>保存 SVG</button>
+          <button class="btn" id="copy-svg" data-i18n="copySvg" type="button">复制 SVG 代码</button>
+        </div>
+        <details id="cfg-box" class="item" data-item="cfg">
+          <summary data-i18n="cfgSummary">配置 JSON（备份或导入）</summary>
+          <div>
+            <label class="note" for="cfg-text" id="cfg-note" data-i18n="cfgNote">修改会自动保存在这个浏览器里，下次打开时自动读取。</label>
+            <textarea id="cfg-text" class="mono" rows="8" spellcheck="false"></textarea>
+            <p class="err" id="cfg-err" hidden></p>
+            <div class="row"><button class="btn" id="cfg-copy" data-i18n="copy" type="button">复制</button><button class="btn" id="cfg-apply" data-i18n="apply" type="button">应用</button><button class="btn" id="cfg-import" data-i18n="importFile" type="button">导入 .json 文件</button></div>
+            <input type="file" id="cfg-file" accept=".json,application/json" hidden>
+          </div>
+        </details>
+      </section>
+    </div>
+  </aside>
+
   <div class="stage">
     <figure class="sheet" id="sheet">
       <canvas id="base" aria-hidden="true"></canvas>
@@ -212,93 +351,64 @@ details > div { display: grid; gap: 10px; margin-top: 14px }
         <button id="zoom-out" type="button" data-i18n-aria="zoomOut" aria-label="缩小">－</button>
         <button id="zoom-home" type="button" data-i18n="zoomHome" data-i18n-aria="zoomHomeAria" aria-label="恢复原始大小">复位</button>
       </div>
-      <p class="fps" id="fps" aria-live="off" hidden></p>
+      <div class="hud top"><p class="pill" id="load-note" role="status"></p><p class="pill" id="msg" role="status"></p></div>
+      <div class="hud bottom"><p class="pill fps" id="fps" aria-live="off" hidden></p><p class="pill" id="readout"></p></div>
     </figure>
-    <div class="brushes" id="brushes" role="group" data-i18n-aria="brushesAria" aria-label="选择画笔颜色"></div>
-    <p class="meta"><span id="readout"></span><span id="load-note" role="status"></span></p>
-    <p class="note" data-i18n="note">本图按自定义边界绘制：台湾（含钓鱼岛及其附属岛屿）、香港、澳门、藏南并入中国，含南海十段线；科索沃并入塞尔维亚；格陵兰、法罗群岛并入丹麦；卢甘斯克、顿涅茨克、克里米亚（含塞瓦斯托波尔）并入俄罗斯。东西德分界线和西柏林边界来自 OpenHistoricalMap（1951–1990，CC0），二级行政区来自 geoBoundaries CGAZ（CC BY 4.0）。这些划分存在争议，不代表国际公认边界。底图来自 Natural Earth 1:10m（公有领域），第十段线的位置参考公开地图资料，只是近似。</p>
   </div>
 
-  <aside class="panel">
-    <section aria-labelledby="ed-title">
-      <h2 id="ed-title" data-i18n="edTitle">当前颜色</h2>
-      <div class="field" id="f-name"><label for="cat-name" data-i18n="name">名称</label><input id="cat-name" type="text" maxlength="24"></div>
-      <div class="field" id="f-style"><span class="lab" data-i18n="style">样式</span>
-        <div class="seg" role="radiogroup" data-i18n-aria="style" aria-label="样式">
-          <label><input type="radio" name="style" id="style-solid" value="solid"><span data-i18n="solid">纯色</span></label>
-          <label><input type="radio" name="style" id="style-stripes" value="stripes"><span data-i18n="stripes">斜线</span></label>
-        </div>
-      </div>
-      <div class="field"><label for="cat-hex" id="color-label">颜色</label>
-        <div class="color"><input id="cat-color" type="color" data-i18n-aria="pickColour" aria-label="选取颜色"><input id="cat-hex" class="mono" type="text" spellcheck="false" maxlength="7"></div>
-      </div>
-      <div class="field" id="f-stripe"><label for="cat-stripe-hex" data-i18n="stripeColour">斜线颜色</label>
-        <div class="color"><input id="cat-stripe" type="color" data-i18n-aria="pickStripe" aria-label="选取斜线颜色"><input id="cat-stripe-hex" class="mono" type="text" spellcheck="false" maxlength="7"></div>
-      </div>
-      <div class="field" id="f-ids"><label for="cat-ids" data-i18n="idsLabel">包含的国家（中文名、英文名或三位代码，用逗号或顿号分开）</label>
-        <textarea id="cat-ids" rows="3" spellcheck="false"></textarea>
-        <p class="err" id="ids-err" hidden></p>
-        <label for="cat-regs" data-i18n="regsLabel">单独涂色的行政区（代码，用逗号分开）</label>
-        <textarea id="cat-regs" class="mono" rows="2" spellcheck="false"></textarea>
-        <p class="err" id="regs-err" hidden></p>
-        <p class="note" id="cat-regions"></p>
-      </div>
-      <button class="btn quiet" id="cat-delete" data-i18n="deleteCat" type="button">删除这个颜色</button>
-    </section>
+  <aside class="side right" id="side-right" data-side="right" data-i18n-aria="rightTitle" aria-label="颜色">
+    <div class="side-head">
+      <button class="icon-btn side-toggle" id="right-toggle" type="button" aria-controls="right-body" aria-expanded="true"></button>
+      <h2 class="side-title" id="right-title" data-i18n="rightTitle">颜色</h2>
+      <button class="icon-btn edit-toggle" type="button" aria-pressed="false"></button>
+    </div>
+    <div class="side-body" id="right-body">
+      <div class="edit-bar"><p class="note" data-i18n="editNote">点卡片或某一行右边的眼睛可以隐藏它，箭头调整卡片顺序，双向箭头把卡片移到另一侧。点“完成”后，隐藏的内容就不再显示。</p><div class="row"><button class="btn primary" type="button" data-edit-done data-i18n="editDone">完成</button><button class="btn" type="button" data-layout-reset data-i18n="layoutReset">恢复默认</button></div></div>
 
-    <section aria-labelledby="blocs-title">
-      <h2 id="blocs-title" data-i18n="blocsTitle">阵营</h2>
-      <p class="note" data-i18n="blocsNote">勾选的阵营在地图上叠一层斜纹；同属几个阵营的国家，各阵营的颜色轮流出现。成员截至 2026 年 11 月。</p>
-      <div class="blocs" id="blocs"></div>
-    </section>
+      <section class="sec" data-sec="brushes" data-title="brushesTitle">
+        <div class="brushes" id="brushes" role="group" data-i18n-aria="brushesAria" aria-label="选择画笔颜色"></div>
+      </section>
 
-    <section aria-labelledby="base-title">
-      <h2 id="base-title" data-i18n="baseTitle">底图</h2>
-      <label class="check"><input id="t-admin" type="checkbox"><span data-i18n="tAdmin">显示行政区线</span></label>
-      <label class="check"><input id="t-adm2" type="checkbox"><span data-i18n="tAdm2">平面图显示二级行政区线（市、县）</span></label>
-      <label class="check"><input id="t-labels" type="checkbox"><span data-i18n="tLabels">平面图显示行政区名称</span></label>
-      <div class="field"><label for="label-size" data-i18n="labelSize">行政区名称字号</label>
-        <div class="range"><input id="label-size" type="range" min="7" max="20" step="0.5"><output id="label-size-out" for="label-size"></output></div>
-      </div>
-      <label class="check"><input id="t-grat" type="checkbox"><span data-i18n="tGrat">地球显示经纬网</span></label>
-      <label class="check"><input id="t-gdr" type="checkbox"><span data-i18n="tGdr">显示东西德分界线和西柏林边界（1951–1990）</span></label>
-      <div class="field"><label for="ocean-hex" data-i18n="ocean">海洋颜色</label>
-        <div class="color"><input id="ocean" type="color" data-i18n-aria="pickOcean" aria-label="选取海洋颜色"><input id="ocean-hex" class="mono" type="text" spellcheck="false" maxlength="7"></div>
-      </div>
-      <div class="field"><label for="paper-hex" data-i18n="paper">背景颜色</label>
-        <div class="color"><input id="paper" type="color" data-i18n-aria="pickPaper" aria-label="选取背景颜色"><input id="paper-hex" class="mono" type="text" spellcheck="false" maxlength="7"></div>
-      </div>
-      <label class="check"><input id="t-fps" type="checkbox"><span data-i18n="tFps">显示地球的帧率和每帧耗时</span></label>
-      <div class="field"><span class="lab" data-i18n="theme">界面主题（只改界面，不改地图颜色）</span>
-        <div class="seg three" role="radiogroup" data-i18n-aria="theme" aria-label="界面主题">
-          <label><input type="radio" name="theme" id="theme-system" value="system"><span data-i18n="themeSystem">跟随系统</span></label>
-          <label><input type="radio" name="theme" id="theme-light" value="light"><span data-i18n="themeLight">浅色</span></label>
-          <label><input type="radio" name="theme" id="theme-dark" value="dark"><span data-i18n="themeDark">深色</span></label>
+      <section class="sec" data-sec="editor" data-title="edTitle" data-title-id="ed-title">
+        <div class="field" id="f-name"><label for="cat-name" data-i18n="name">名称</label><input id="cat-name" type="text" maxlength="24"></div>
+        <div class="field" id="f-style"><span class="lab" data-i18n="style">样式</span>
+          <div class="seg" role="radiogroup" data-i18n-aria="style" aria-label="样式">
+            <label><input type="radio" name="style" id="style-solid" value="solid"><span data-i18n="solid">纯色</span></label>
+            <label><input type="radio" name="style" id="style-stripes" value="stripes"><span data-i18n="stripes">斜线</span></label>
+          </div>
         </div>
-      </div>
-    </section>
+        <div class="field"><label for="cat-hex" id="color-label">颜色</label>
+          <div class="color"><input id="cat-color" type="color" data-i18n-aria="pickColour" aria-label="选取颜色"><input id="cat-hex" class="mono" type="text" spellcheck="false" maxlength="7"></div>
+        </div>
+        <div class="field" id="f-stripe"><label for="cat-stripe-hex" data-i18n="stripeColour">斜线颜色</label>
+          <div class="color"><input id="cat-stripe" type="color" data-i18n-aria="pickStripe" aria-label="选取斜线颜色"><input id="cat-stripe-hex" class="mono" type="text" spellcheck="false" maxlength="7"></div>
+        </div>
+        <div class="field" id="f-ids">
+          <div class="field item" data-item="ids"><label for="cat-ids" data-i18n="idsLabel">包含的国家（中文名、英文名或三位代码，用逗号或顿号分开）</label>
+            <textarea id="cat-ids" rows="3" spellcheck="false"></textarea>
+            <p class="err" id="ids-err" hidden></p>
+          </div>
+          <div class="field item" data-item="regs"><label for="cat-regs" data-i18n="regsLabel">单独涂色的行政区（代码，用逗号分开）</label>
+            <textarea id="cat-regs" class="mono" rows="2" spellcheck="false"></textarea>
+            <p class="err" id="regs-err" hidden></p>
+            <p class="note" id="cat-regions"></p>
+          </div>
+        </div>
+        <button class="btn quiet" id="cat-delete" data-i18n="deleteCat" type="button">删除这个颜色</button>
+      </section>
 
-    <section aria-labelledby="out-title">
-      <h2 id="out-title" data-i18n="outTitle">导出当前视图</h2>
-      <div class="row">
-        <button class="btn primary" id="save-png" data-i18n="savePng" type="button" hidden>保存 PNG</button>
-        <button class="btn" id="save-svg" data-i18n="saveSvg" type="button" hidden>保存 SVG</button>
-        <button class="btn" id="copy-svg" data-i18n="copySvg" type="button">复制 SVG 代码</button>
-      </div>
-      <p class="note" id="msg" role="status"></p>
-      <details id="cfg-box">
-        <summary data-i18n="cfgSummary">配置 JSON（备份或导入）</summary>
-        <div>
-          <label class="note" for="cfg-text" data-i18n="cfgNote">颜色和分组保存在这个浏览器里。换设备时，复制这段配置，粘贴到新页面后点“应用”；也可以直接导入之前存下的 .json 文件。</label>
-          <textarea id="cfg-text" class="mono" rows="8" spellcheck="false"></textarea>
-          <p class="err" id="cfg-err" hidden></p>
-          <div class="row"><button class="btn" id="cfg-copy" data-i18n="copy" type="button">复制</button><button class="btn" id="cfg-apply" data-i18n="apply" type="button">应用</button><button class="btn" id="cfg-import" data-i18n="importFile" type="button">导入 .json 文件</button></div>
-          <input type="file" id="cfg-file" accept=".json,application/json" hidden>
+      <section class="sec" data-sec="mapColours" data-title="mapColoursTitle">
+        <div class="field item" data-item="ocean"><label for="ocean-hex" data-i18n="ocean">海洋颜色</label>
+          <div class="color"><input id="ocean" type="color" data-i18n-aria="pickOcean" aria-label="选取海洋颜色"><input id="ocean-hex" class="mono" type="text" spellcheck="false" maxlength="7"></div>
         </div>
-      </details>
-    </section>
+        <div class="field item" data-item="paper"><label for="paper-hex" data-i18n="paper">背景颜色</label>
+          <div class="color"><input id="paper" type="color" data-i18n-aria="pickPaper" aria-label="选取背景颜色"><input id="paper-hex" class="mono" type="text" spellcheck="false" maxlength="7"></div>
+        </div>
+      </section>
+    </div>
   </aside>
 </main>
+
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
@@ -759,7 +869,9 @@ function renderBlocs() {
   box.textContent = '';
   for (const b of BLOCS) {
     const wrap = document.createElement('div');
-    wrap.className = 'bloc';
+    wrap.className = 'bloc item';
+    wrap.dataset.item = 'bloc-' + b.id;
+    wrap.dataset.name = b[lang];
     const row = document.createElement('label');
     row.className = 'check';
     const cb = document.createElement('input');
@@ -839,6 +951,7 @@ function renderBlocs() {
     wrap.append(row, det);
     box.append(wrap);
   }
+  if (layout) decorateItems();
 }
 
 /* ---- globe drawing ---- */
@@ -2111,7 +2224,15 @@ findBox.addEventListener('keydown', e => {
 findBox.addEventListener('blur', () => { findHits = []; findAt = -1; showFind(); });
 
 /* ---- export ---- */
-function say(text) { $('msg').textContent = text; }
+// messages float at the top of the map for a few seconds; the text stays in the element for screen readers and tests
+let sayTimer = 0;
+function say(text) {
+  const m = $('msg');
+  m.textContent = text;
+  m.classList.toggle('show', !!text);
+  clearTimeout(sayTimer);
+  if (text) sayTimer = setTimeout(() => m.classList.remove('show'), 5000);
+}
 function flatExportNode() {
   const node = $('flat').cloneNode(true);
   node.querySelectorAll('[data-ui]').forEach(n => n.remove());
@@ -2282,6 +2403,212 @@ $('cfg-file').addEventListener('change', async e => {
   applyCfgText(text, t('cfgImported', { name: file.name }));
 });
 
+/* ---- sidebars: folding, cards, and choosing what shows ---- */
+// Tools on the left, colours on the right. Each sidebar folds to a rail, each card folds to its title, and in editing mode every
+// card and every marked row can be hidden; cards can also be reordered or moved to the other side. The layout is a preference
+// (localStorage on the web, the settings file on the desktop), not part of the colour configuration.
+const SIDES = ['left', 'right'];
+const LAYOUT0 = { open: { left: true, right: true }, order: { left: ['blocs', 'layers', 'ui', 'export'], right: ['brushes', 'editor', 'mapColours'] }, closed: [], hidden: [] };
+const SVG = (d, extra = '') => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"${extra}>${d}</svg>`;
+const ICON = {
+  side: SVG('<rect x="3.5" y="4.5" width="17" height="15" rx="3"/><path d="M9.5 4.5v15"/><path d="m15.5 10-2 2 2 2"/>'),
+  edit: SVG('<path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="m13.5 6.5 4 4"/>'),
+  chev: SVG('<path d="m6 9 6 6 6-6"/>'),
+  up: SVG('<path d="m6 15 6-6 6 6"/>'),
+  down: SVG('<path d="m6 9 6 6 6-6"/>'),
+  swap: SVG('<path d="M4 8h15m0 0-3.5-3.5M19 8l-3.5 3.5"/><path d="M20 16H5m0 0 3.5-3.5M5 16l3.5 3.5"/>'),
+  eye: SVG('<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/>'),
+  eyeOff: SVG('<path d="M10.6 5.6A9.6 9.6 0 0 1 12 5.5c6 0 9.5 6.5 9.5 6.5a16 16 0 0 1-2.6 3.4M6.6 6.6C3.9 8.3 2.5 12 2.5 12S6 18.5 12 18.5c1.9 0 3.5-.6 4.9-1.5"/><path d="M9.9 9.9a2.8 2.8 0 0 0 4 4"/><path d="m3 3 18 18"/>')
+};
+const narrow = matchMedia('(max-width: 900px)');
+// on a narrow window the sidebars open over the map, one at a time, and start folded
+const narrowOpen = { left: false, right: false };
+const secs = {};
+let layout = null;
+let editing = false;
+function readLayout() {
+  const L = clone(LAYOUT0);
+  let o = null;
+  try { o = JSON.parse(platform.pref('layout') || 'null'); } catch (e) {}
+  if (!o || typeof o !== 'object') return L;
+  if (o.open) for (const s of SIDES) if (typeof o.open[s] === 'boolean') L.open[s] = o.open[s];
+  if (o.order) {
+    const seen = new Set();
+    for (const s of SIDES) L.order[s] = (Array.isArray(o.order[s]) ? o.order[s] : []).filter(id => secs[id] && !seen.has(id) && seen.add(id));
+    // cards a saved layout does not know yet go to their usual side
+    for (const s of SIDES) for (const id of LAYOUT0.order[s]) if (!seen.has(id)) L.order[s].push(id);
+  }
+  for (const k of ['closed', 'hidden']) if (Array.isArray(o[k])) L[k] = o[k].filter(x => typeof x === 'string');
+  return L;
+}
+const saveLayout = () => platform.pref('layout', JSON.stringify(layout));
+const sideOf = id => SIDES.find(s => layout.order[s].includes(id));
+const isOpen = s => narrow.matches ? narrowOpen[s] : layout.open[s];
+const listed = (k, key) => layout[k].includes(key);
+function flip(k, key) {
+  layout[k] = listed(k, key) ? layout[k].filter(x => x !== key) : [...layout[k], key];
+  saveLayout();
+  applyLayout();
+}
+function iconTool(cls, icon, fn) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'tool ' + cls;
+  b.innerHTML = icon;
+  b.addEventListener('click', fn);
+  return b;
+}
+// a card's markup is just its contents; the title bar, its fold and the editing tools are put around them here
+function buildSections() {
+  for (const sec of document.querySelectorAll('.side [data-sec]')) {
+    const id = sec.dataset.sec;
+    secs[id] = sec;
+    const head = document.createElement('div');
+    head.className = 'sec-head';
+    const h = document.createElement('h2');
+    h.className = 'sec-h';
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'sec-toggle';
+    btn.setAttribute('aria-controls', 'sec-' + id);
+    const label = document.createElement('span');
+    label.id = sec.dataset.titleId || 'sec-title-' + id;
+    label.dataset.i18n = sec.dataset.title;
+    btn.append(label);
+    btn.insertAdjacentHTML('beforeend', ICON.chev);
+    btn.addEventListener('click', () => flip('closed', id));
+    h.append(btn);
+    const tools = document.createElement('div');
+    tools.className = 'sec-tools';
+    const keep = fn => e => { const cls = e.currentTarget.classList[1]; fn(); const again = secs[id].querySelector('.sec-tools .' + cls); if (again && !again.disabled) again.focus(); else btn.focus(); };
+    tools.append(
+      iconTool('up', ICON.up, keep(() => moveSec(id, -1))),
+      iconTool('down', ICON.down, keep(() => moveSec(id, 1))),
+      iconTool('swap', ICON.swap, keep(() => swapSide(id))),
+      iconTool('eye', ICON.eye, keep(() => flip('hidden', 's:' + id)))
+    );
+    head.append(h, tools);
+    const body = document.createElement('div');
+    body.className = 'sec-body';
+    body.id = 'sec-' + id;
+    const inner = document.createElement('div');
+    inner.className = 'sec-inner';
+    const pad = document.createElement('div');
+    pad.className = 'sec-pad';
+    pad.append(...sec.childNodes);
+    inner.append(pad);
+    body.append(inner);
+    sec.append(head, body);
+    sec.setAttribute('aria-labelledby', label.id);
+  }
+  for (const s of SIDES) {
+    $(s + '-toggle').innerHTML = ICON.side;
+    $(s + '-toggle').addEventListener('click', () => toggleSide(s));
+    // the folded rail opens from its title too
+    $(s + '-title').addEventListener('click', () => { if (!isOpen(s)) toggleSide(s); });
+  }
+  for (const b of document.querySelectorAll('.edit-toggle')) { b.innerHTML = ICON.edit; b.addEventListener('click', () => setEditing(!editing)); }
+  for (const b of document.querySelectorAll('[data-edit-done]')) b.addEventListener('click', () => setEditing(false));
+  for (const b of document.querySelectorAll('[data-layout-reset]')) b.addEventListener('click', () => {
+    layout = clone(LAYOUT0);
+    saveLayout();
+    applyLayout();
+    say(t('layoutResetDone'));
+  });
+}
+function moveSec(id, dir) {
+  const list = layout.order[sideOf(id)], i = list.indexOf(id), j = i + dir;
+  if (j < 0 || j >= list.length) return;
+  [list[i], list[j]] = [list[j], list[i]];
+  saveLayout();
+  applyLayout();
+}
+function swapSide(id) {
+  const from = sideOf(id), to = from === 'left' ? 'right' : 'left';
+  layout.order[from] = layout.order[from].filter(x => x !== id);
+  layout.order[to].push(id);
+  if (narrow.matches) { narrowOpen[to] = true; narrowOpen[from] = false; } else layout.open[to] = true;
+  saveLayout();
+  applyLayout();
+}
+function toggleSide(s) {
+  if (narrow.matches) {
+    narrowOpen[s] = !narrowOpen[s];
+    if (narrowOpen[s]) for (const o of SIDES) if (o !== s) narrowOpen[o] = false;
+  } else {
+    layout.open[s] = !layout.open[s];
+    saveLayout();
+  }
+  applyLayout();
+}
+function setEditing(on) {
+  editing = on;
+  // editing needs the sidebars open
+  if (on) for (const s of SIDES) if (!isOpen(s) && !narrow.matches) layout.open[s] = true;
+  if (on && narrow.matches && !SIDES.some(s => narrowOpen[s])) narrowOpen.left = true;
+  applyLayout();
+}
+// a row's name for its eye button: its own label, or the first translated text in it
+const itemName = item => item.dataset.name || (item.dataset.nameKey ? t(item.dataset.nameKey) : (item.querySelector('[data-i18n]') || item).textContent.trim());
+function decorateItems() {
+  for (const item of document.querySelectorAll('.side [data-item]')) {
+    const key = 'i:' + item.dataset.item, off = listed('hidden', key);
+    let eye = item.querySelector(':scope > .eye');
+    if (!eye) { eye = iconTool('eye', '', () => { flip('hidden', key); item.querySelector(':scope > .eye').focus(); }); item.append(eye); }
+    item.classList.toggle('is-off', off);
+    eye.innerHTML = off ? ICON.eyeOff : ICON.eye;
+    eye.setAttribute('aria-pressed', String(!off));
+    eye.setAttribute('aria-label', t(off ? 'showItem' : 'hideItem', { name: itemName(item) }));
+    eye.title = eye.getAttribute('aria-label');
+  }
+}
+function applyLayout() {
+  const app = $('app');
+  for (const s of SIDES) {
+    const open = isOpen(s), body = $(s + '-body'), toggle = $(s + '-toggle');
+    app.classList.toggle(s + '-shut', !open);
+    $('side-' + s).classList.toggle('shut', !open);
+    body.inert = !open;
+    toggle.setAttribute('aria-expanded', String(open));
+    toggle.setAttribute('aria-label', t(open ? 'sideCollapse' : 'sideExpand', { name: t(s + 'Title') }));
+    toggle.title = `${toggle.getAttribute('aria-label')} (${s === 'left' ? '[' : ']'})`;
+    for (const id of layout.order[s]) body.append(secs[id]);
+  }
+  for (const s of SIDES) layout.order[s].forEach((id, i, list) => {
+    const sec = secs[id], closed = listed('closed', id), off = listed('hidden', 's:' + id), name = t(sec.dataset.title);
+    sec.classList.toggle('closed', closed);
+    sec.classList.toggle('is-off', off);
+    sec.querySelector('.sec-toggle').setAttribute('aria-expanded', String(!closed));
+    sec.querySelector('.sec-body').inert = closed;
+    const tool = (k, label, disabled) => { const b = sec.querySelector('.sec-tools .' + k); b.setAttribute('aria-label', label); b.title = label; b.disabled = !!disabled; return b; };
+    tool('up', t('moveUp', { name }), i === 0);
+    tool('down', t('moveDown', { name }), i === list.length - 1);
+    tool('swap', t(s === 'left' ? 'moveRight' : 'moveLeft', { name }));
+    const eye = tool('eye', t(off ? 'showItem' : 'hideItem', { name }));
+    eye.innerHTML = off ? ICON.eyeOff : ICON.eye;
+    eye.setAttribute('aria-pressed', String(!off));
+  });
+  decorateItems();
+  app.classList.toggle('editing', editing);
+  for (const b of document.querySelectorAll('.edit-toggle')) {
+    b.setAttribute('aria-pressed', String(editing));
+    b.setAttribute('aria-label', t(editing ? 'editDone' : 'editLayout'));
+    b.title = b.getAttribute('aria-label');
+  }
+}
+buildSections();
+layout = readLayout();
+narrow.addEventListener('change', () => { narrowOpen.left = narrowOpen.right = false; applyLayout(); });
+// [ and ] fold the sidebars, Escape leaves editing; never while typing
+document.addEventListener('keydown', e => {
+  const tag = e.target.tagName;
+  if (e.metaKey || e.ctrlKey || e.altKey || tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target.isContentEditable) return;
+  if (e.code === 'BracketLeft' || e.code === 'BracketRight') { e.preventDefault(); toggleSide(e.code === 'BracketLeft' ? 'left' : 'right'); }
+  else if (e.key === 'Escape' && editing) setEditing(false);
+});
+// the configuration note says where changes are kept
+$('cfg-note').dataset.i18n = platform.kind === 'desktop' ? 'cfgNoteDesktop' : 'cfgNote';
+
 /* ---- interface theme ---- */
 // "system" leaves the choice to the browser, the Artifact viewer or macOS; light and dark pin it. The map keeps its own colours.
 const hostTheme = document.documentElement.getAttribute('data-theme');
@@ -2306,6 +2633,7 @@ function setLang(next) {
   $('lang-zh').checked = lang === 'zh';
   $('lang-en').checked = lang === 'en';
   translatePage();
+  applyLayout();
   renderAll();
   showHint();
   if (meterTimer) showMeter();
@@ -2342,4 +2670,5 @@ showHint();
 syncZoom();
 if (cfg.admin) ensureAdmin();
 if (platform.pref('fps')) setMeter(true);
+requestAnimationFrame(() => requestAnimationFrame(() => $('app').classList.remove('still')));
 </script>

@@ -10,16 +10,19 @@ const APP_ROOT = path.join(HERE, 'app');
 // packaged builds carry data/ as an extra resource; during development it is the web build's dist/data
 const DATA_ROOT = app.isPackaged ? path.join(process.resourcesPath, 'data') : path.join(HERE, '..', 'dist', 'data');
 const SETTINGS = () => path.join(app.getPath('userData'), 'settings.json');
+// an untitled project is kept here between launches, until it is saved as a file or replaced
+const AUTOSAVE = () => path.join(app.getPath('userData'), 'untitled.json');
 const CSP = "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' blob: data:; connect-src 'self'; worker-src 'self' blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8' };
 
 protocol.registerSchemesAsPrivileged([{ scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
 
 let win = null;
-let settings = { recent: [], prefs: {}, lastDir: '' };
-// the open project: its file (null when untitled), the page's config as last written and as it is now
-const project = { file: null, saved: null, current: null, raw: null };
-let quitting = false;
+let settings = { recent: [], prefs: {}, lastDir: '', lastProject: null };
+// the open project: its file (null when untitled), the page's config as last written and as it is now. Every change is written
+// back on its own: to the project file, or for an untitled project to AUTOSAVE. "Unsaved" only means an untitled project that
+// has something in it (kept, but not yet in a file of the reader's own).
+const project = { file: null, saved: null, current: null, written: null, raw: null, kept: false };
 
 // menus, dialogs and the window title follow the language chosen in the page
 const WORDS = {
@@ -55,7 +58,25 @@ function readSettings() {
 function writeSettings() {
   try { fs.mkdirSync(path.dirname(SETTINGS()), { recursive: true }); fs.writeFileSync(SETTINGS(), JSON.stringify(settings, null, 2)); } catch (e) {}
 }
-const dirty = () => project.current !== null && project.current !== project.saved;
+const dirty = () => !project.file && project.current !== null && project.current !== project.saved;
+let writeTimer = null;
+function writeNow() {
+  clearTimeout(writeTimer);
+  writeTimer = null;
+  if (project.current === null || project.current === project.written) return;
+  const text = JSON.stringify(JSON.parse(project.current), null, 2) + '\n';
+  try {
+    if (project.file) { fs.writeFileSync(project.file, text); project.saved = project.current; }
+    else { fs.mkdirSync(path.dirname(AUTOSAVE()), { recursive: true }); fs.writeFileSync(AUTOSAVE(), text); }
+    project.written = project.current;
+  } catch (e) {
+    if (project.file) dialogs.showMessageBox(win, { type: 'error', message: L('saveFailed'), detail: e.message });
+  }
+  syncTitle();
+}
+// changes come in bursts (dragging a colour picker); write once things settle
+const scheduleWrite = () => { clearTimeout(writeTimer); writeTimer = setTimeout(writeNow, 300); };
+function dropAutosave() { try { fs.rmSync(AUTOSAVE(), { force: true }); } catch (e) {} }
 function syncTitle() {
   if (!win) return;
   const name = project.file ? path.basename(project.file) : L('untitled');
@@ -67,6 +88,7 @@ function syncTitle() {
 }
 function remember(file) {
   settings.recent = [file, ...settings.recent.filter(f => f !== file)].slice(0, 10);
+  settings.lastProject = file;
   settings.lastDir = path.dirname(file);
   writeSettings();
   app.addRecentDocument(file);
@@ -90,8 +112,10 @@ async function serve(request) {
 
 /* ---- project files: the existing config JSON, as is ---- */
 function send(name, arg) { if (win) win.webContents.send('command', name, arg); }
+// only an untitled project can be lost when another one takes its place; a project file already holds every change
 async function confirmDiscard() {
-  if (!dirty()) return true;
+  writeNow();
+  if (project.file || !dirty()) return true;
   const { response } = await dialogs.showMessageBox(win, {
     type: 'warning', buttons: [L('save'), L('dontSave'), L('cancel')], defaultId: 0, cancelId: 2,
     message: L('askSave', { name: project.file ? path.basename(project.file) : L('untitled') }), detail: L('askSaveDetail')
@@ -118,14 +142,18 @@ async function openProject(file) {
     dialogs.showMessageBox(win, { type: 'error', message: L('cantOpen', { name: path.basename(file) }), detail: e instanceof SyntaxError ? L('badJson') : e.message });
     return;
   }
-  Object.assign(project, { file, saved: null, current: null, raw });
+  Object.assign(project, { file, saved: null, current: null, written: null, raw, kept: false });
+  dropAutosave();
   remember(file);
   send('project', raw);
   syncTitle();
 }
 async function newProject() {
   if (!(await confirmDiscard())) return;
-  Object.assign(project, { file: null, saved: null, current: null, raw: null });
+  Object.assign(project, { file: null, saved: null, current: null, written: null, raw: null, kept: false });
+  dropAutosave();
+  settings.lastProject = null;
+  writeSettings();
   send('project', null);
   syncTitle();
 }
@@ -142,8 +170,9 @@ async function saveProject(as) {
     dialogs.showMessageBox(win, { type: 'error', message: L('saveFailed'), detail: e.message });
     return false;
   }
+  if (!project.file) dropAutosave();
   project.file = file;
-  project.saved = project.current;
+  project.saved = project.written = project.current;
   remember(file);
   syncTitle();
   return true;
@@ -151,11 +180,13 @@ async function saveProject(as) {
 
 ipcMain.on('boot', e => { e.returnValue = { project: project.raw, prefs: settings.prefs || {} }; });
 // the page reports its normalized config once after loading a project, so "unchanged" compares like with like
-ipcMain.on('project:baseline', (e, json) => { project.saved = project.current = json; syncTitle(); });
+// (an untitled project brought back from AUTOSAVE still counts as unsaved)
+ipcMain.on('project:baseline', (e, json) => { project.current = project.written = json; project.saved = project.kept ? null : json; syncTitle(); });
 ipcMain.on('project:changed', (e, json) => {
   project.current = json;
   project.raw = JSON.parse(json);
   syncTitle();
+  scheduleWrite();
 });
 ipcMain.on('pref', (e, key, value) => {
   settings.prefs = { ...settings.prefs, [String(key)]: value };
@@ -223,11 +254,8 @@ function createWindow() {
   win.webContents.on('did-finish-load', syncTitle);
   win.webContents.setWindowOpenHandler(({ url }) => { if (/^https:\/\//.test(url)) shell.openExternal(url); return { action: 'deny' }; });
   win.webContents.on('will-navigate', (e, url) => { if (!url.startsWith('app://globe/')) e.preventDefault(); });
-  win.on('close', async e => {
-    if (quitting || !dirty()) return;
-    e.preventDefault();
-    if (await confirmDiscard()) { quitting = true; win.close(); }
-  });
+  // nothing to ask on closing: the last changes go to the project file or AUTOSAVE, and come back on the next launch
+  win.on('close', writeNow);
   win.on('closed', () => { win = null; });
   win.loadURL('app://globe/index.html');
   syncTitle();
@@ -244,8 +272,14 @@ app.whenReady().then(() => {
   // a packaged build takes its icon from the bundle; during development show the same one in the Dock
   if (!app.isPackaged && process.platform === 'darwin' && app.dock) app.dock.setIcon(path.join(HERE, '..', 'design', 'logo', 'kit', 'web', 'icon-512.png'));
   protocol.handle('app', serve);
-  if (pendingFile) {
-    try { Object.assign(project, { file: pendingFile, raw: loadProjectFile(pendingFile) }); remember(pendingFile); } catch (e) {}
+  // a file handed over by Finder or the command line, else the project open last time, else the untitled one kept from then
+  const last = pendingFile || (settings.lastProject && fs.existsSync(settings.lastProject) ? settings.lastProject : null);
+  let opened = false;
+  if (last) {
+    try { Object.assign(project, { file: last, raw: loadProjectFile(last) }); remember(last); opened = true; } catch (e) {}
+  }
+  if (!opened) {
+    try { const raw = JSON.parse(fs.readFileSync(AUTOSAVE(), 'utf8')); if (raw && Array.isArray(raw.cats)) Object.assign(project, { raw, kept: true }); } catch (e) {}
   }
   buildMenu();
   createWindow();
@@ -256,5 +290,5 @@ if (TEST) {
   app.setPath('userData', path.join(TEST.dir, 'userData'));
   globalThis.wgTest = { state: TEST, project, get settings() { return settings; }, click: label => item(Menu.getApplicationMenu().items, label).click(), title: () => win && win.getTitle(), close: () => win && win.close(), alive: () => !!win, theme: () => [nativeTheme.themeSource, nativeTheme.shouldUseDarkColors], menu: () => Menu.getApplicationMenu().items.map(m => m.label) };
 }
-app.on('before-quit', () => { if (!dirty()) quitting = true; });
+app.on('before-quit', writeNow);
 app.on('window-all-closed', () => app.quit());
