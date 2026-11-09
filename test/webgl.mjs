@@ -10,6 +10,8 @@
 //   hypso     hypsometric tints: known bands at known places (overview and one-arc-minute tiles), WebGL against the CPU raster,
 //             painted countries on top, the readout, exports, the country map's raster and legend
 //   hypsocanvas  the same places with WebGL switched off
+//   overlays  rivers, the equator and tropics, night lights and shipping density: pixels at known places, WebGL against the CPU raster,
+//             exports, the country map, the saved switches
 import puppeteer from 'puppeteer-core';
 import fs from 'fs';
 const BATCH = process.argv[2] || 'spots', URL = process.argv[3] || 'http://127.0.0.1:8765/wrap.html';
@@ -28,10 +30,10 @@ try {
     cfg = normalize({ cats: [{ id: 't', name: '测试', color: '#cc3366', stripe: '#ffffff', ids: [] }] }); active = 't'; renderAll(); setMode('paint'); setUnit(0);
     window.centerOn = (ll, z) => { stopMotion(); rot = [-ll[0], -ll[1], 0]; zoom = z; moving = false; drawBase(); };
     const state = ratio => ({ w: size.w, h: size.h, ratio, rotate: rot, scale: globeScale(size.w, size.h, zoom), paper: cfg.paper, ocean: cfg.ocean, graticule: cfg.graticule, admin: cfg.admin, gdr: cfg.gdr, hypso: hypsoOn() && glDem });
-    window.glImage = ratio => { const c = glView.snapshot(state(ratio)); drawBase(); return c; };
+    window.glImage = ratio => { syncGLExtras(ratio); const c = glView.snapshot({ ...glState(ratio), ...state(ratio) }); drawBase(); return c; };
     window.cvImage = ratio => {
       const c = document.createElement('canvas'); c.width = Math.round(size.w * ratio); c.height = Math.round(size.h * ratio);
-      drawGlobe(c.getContext('2d'), { ...state(ratio), rotate: rot, z: zoom, set: DATA.hi, seal: false, admin: cfg.admin ? DATA.adminHi || DATA.adminLo : null, tints: hypsoOn() ? globeRasters(size.w, size.h, ratio, rot, zoom) : null });
+      drawGlobe(c.getContext('2d'), { ...state(ratio), rotate: rot, z: zoom, set: DATA.hi, seal: false, admin: cfg.admin ? DATA.adminHi || DATA.adminLo : null, tints: hypsoOn() ? globeRasters(size.w, size.h, ratio, rot, zoom) : null, over: overlaysOn() ? overlayRaster(size.w, size.h, ratio, rot, zoom) : null });
       return c;
     };
     window.pixel = (c, x, y) => [...c.getContext('2d').getImageData(Math.round(x), Math.round(y), 1, 1).data.slice(0, 3)].map(v => v.toString(16).padStart(2, '0')).join('');
@@ -357,6 +359,82 @@ try {
       const legend = await p.evaluate(() => ({ bars: [...document.querySelectorAll('#hypso-legend .legend-bar')].map(b => b.children.length).join(), title: document.querySelector('#hypso-legend .legend-bar span').title, saved: cfg.hypso }));
       check('图例', legend.bars === '34,23' && legend.title === '50 米以下' && legend.saved, JSON.stringify(legend));
     }
+  }
+  if (BATCH === 'overlays') {
+    const rgbOf = h => [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16));
+    const lum = h => { const [r, g, b] = rgbOf(h); return .2126 * r + .7152 * g + .0722 * b; };
+    await p.evaluate(() => { cfg.graticule = false; $('t-rivers').click(); $('t-lats').click(); });
+    await p.waitForFunction(() => DATA.rivers, { timeout: 10000 });
+    // the equator crosses the centre of the view: its colour over the sea, in WebGL and in Canvas 2D
+    // (the line is under a pixel wide, so take the row a few pixels around the centre that differs most from the sea)
+    const eq = await p.evaluate(() => {
+      centerOn([-25, 0], 4);
+      const a = glImage(1), b = cvImage(1), X = size.w / 2, Y = Math.round(size.h / 2), sea = rgb(cfg.ocean), off = h => rgb('#' + h).reduce((s, v, i) => s + Math.abs(v - sea[i]), 0);
+      let gl = '', cv = '';
+      for (let dy = -3; dy <= 3; dy++) { const g = pixel(a, X, Y + dy), c = pixel(b, X, Y + dy); if (!gl || off(g) > off(gl)) gl = g; if (!cv || off(c) > off(cv)) cv = c; }
+      return { gl, cv, ocean: cfg.ocean.slice(1), segs: glView.stats.segments };
+    });
+    const near = (a, b, d = 24) => rgbOf(a).every((v, i) => Math.abs(v - rgbOf(b)[i]) <= d);
+    check('赤道', eq.gl !== eq.ocean && near(eq.gl, eq.cv) && rgbOf(eq.gl)[0] > rgbOf(eq.gl)[2], JSON.stringify(eq));
+    // the Amazon below Manaus at ×12: some pixels along a short row are river blue (blue above red)
+    const river = await p.evaluate(() => {
+      centerOn([-58.5, -3.2], 12);
+      const a = glImage(1), b = cvImage(1), blue = c => { let n = 0; for (let x = 0; x < size.w; x += 2) { const [r, , bl] = c.getContext('2d').getImageData(x, size.h / 2, 1, 1).data; if (bl > r + 25) n++; } return n; };
+      return { gl: blue(a), cv: blue(b), major: DATA.rivers.major.coordinates.length, all: DATA.rivers.all.coordinates.length };
+    });
+    check('河流', river.gl > 0 && river.cv > 0 && river.all > river.major, JSON.stringify(river));
+    // night lights: the open sea darkens under the veil, Tokyo glows warm (rivers and parallels off, so no line crosses the pixel)
+    await p.evaluate(() => { $('t-rivers').click(); $('t-lats').click(); $('t-lights').click(); });
+    await p.waitForFunction(() => lightsOn() && glView.overlayReady('lights'), { timeout: 10000 });
+    const lights = [];
+    for (const [name, ll, z] of [['大西洋', [-30, 15], 2], ['东京', [139.75, 35.68], 8]]) {
+      await p.evaluate((ll, z) => centerOn(ll, z), ll, z);
+      if (z > 6) await p.waitForFunction(() => globeTiles(size.ratio, LIGHTS).every(q => LIGHTS.tiles.get(q.key) && LIGHTS.tiles.get(q.key).codes), { timeout: 10000 });
+      lights.push(await p.evaluate(name => { drawBase(); const X = size.w / 2, Y = size.h / 2, [lon, lat] = globeProjection(size.w, size.h, rot).invert([X, Y]); return { name, code: codeAt(lon, lat, LIGHTS), gl: pixel(glImage(1), X, Y), cv: pixel(cvImage(1), X, Y) }; }, name));
+    }
+    check('夜光：海面变暗', lights[0].code < 10 && lum(lights[0].gl) < 120 && near(lights[0].gl, lights[0].cv, 6), JSON.stringify(lights[0]));
+    // a 30-arc-second cell is under half a pixel here and the city is uneven from cell to cell, so WebGL and the CPU may read
+    // neighbouring cells; the whole-view comparison below is the strict one
+    check('夜光：东京发亮', lights[1].code > 150 && lum(lights[1].gl) > 180 && rgbOf(lights[1].gl)[0] > rgbOf(lights[1].gl)[2] && near(lights[1].gl, lights[1].cv, 32), JSON.stringify(lights[1]));
+    await p.evaluate(() => $('t-lights').click());
+    // shipping: the Singapore Strait against the empty South Pacific
+    await p.evaluate(() => $('t-ships').click());
+    await p.waitForFunction(() => shipsOn() && glView.overlayReady('ships'), { timeout: 10000 });
+    const ships = [];
+    // the centre of the busiest two-arc-minute cell in the strait
+    for (const [name, ll, z] of [['新加坡海峡', [103.983, 1.25], 8], ['南太平洋', [-130, -45], 2]]) {
+      await p.evaluate((ll, z) => centerOn(ll, z), ll, z);
+      if (z > 6) await p.waitForFunction(() => globeTiles(size.ratio, SHIPS).every(q => SHIPS.tiles.get(q.key) && SHIPS.tiles.get(q.key).codes), { timeout: 10000 });
+      ships.push(await p.evaluate(name => { drawBase(); const X = size.w / 2, Y = size.h / 2, [lon, lat] = globeProjection(size.w, size.h, rot).invert([X, Y]); return { name, code: codeAt(lon, lat, SHIPS), gl: pixel(glImage(1), X, Y), cv: pixel(cvImage(1), X, Y), ocean: cfg.ocean.slice(1) }; }, name));
+    }
+    check('航运：新加坡海峡', ships[0].code > 180 && rgbOf(ships[0].gl)[0] > rgbOf(ships[0].gl)[2] + 30 && near(ships[0].gl, ships[0].cv, 6), JSON.stringify(ships[0]));
+    check('航运：南太平洋没有船', ships[1].code === 0 && ships[1].gl === ships[1].ocean, JSON.stringify(ships[1]));
+    // a whole view at ×6 over the Strait of Malacca: WebGL and the CPU raster agree away from lines
+    await p.evaluate(() => { $('t-lights').click(); $('t-rivers').click(); $('t-lats').click(); centerOn([100, 4], 6); });
+    await p.waitForFunction(() => overlaySets().every(R => globeTiles(size.ratio, R).every(q => R.tiles.get(q.key) && R.tiles.get(q.key).codes)), { timeout: 10000 });
+    const agree = await p.evaluate(() => {
+      drawBase();
+      const a = glImage(1), b = cvImage(1), d = (x, y) => { const p = a.getContext('2d').getImageData(x, y, 1, 1).data, q = b.getContext('2d').getImageData(x, y, 1, 1).data; return Math.max(Math.abs(p[0] - q[0]), Math.abs(p[1] - q[1]), Math.abs(p[2] - q[2])); };
+      let same = 0, n = 0;
+      for (let y = 20; y < size.h - 20; y += 7) for (let x = 20; x < size.w - 20; x += 7) { n++; if (d(x, y) <= 3) same++; }
+      return { same, n, share: +(same / n).toFixed(3) };
+    });
+    check('WebGL 与 CPU 栅格一致（马六甲）', agree.share > .9, JSON.stringify(agree));
+    await p.screenshot({ path: 'work/overlays-globe.png', clip: { x: box.x, y: box.y, width: box.width, height: box.height } });
+    // exports: the overlay raster and the coloured lines are in the SVG; the PNG has the picture
+    const svg = await p.evaluate(async () => { const s = await currentSvg(); return { images: (s.match(/<image /g) || []).length, river: s.includes(`stroke="${RIVER.color}"`), lats: (s.match(new RegExp(`stroke="${LATS.color}"`, 'g')) || []).length, mb: +(s.length / 1e6).toFixed(1) }; });
+    check('地球 SVG 带河流、纬线和叠加层', svg.images === 1 && svg.river && svg.lats === 2, JSON.stringify(svg));
+    const png = await p.evaluate(async () => { const b = await currentPng(); const bmp = await createImageBitmap(b); return [bmp.width, bmp.height, b.size]; });
+    check('地球 PNG', png[0] === 2400 && png[2] > 100000, JSON.stringify(png));
+    // the country map: lights over Japan, its rivers clipped to the country, the tropic of Cancer not far south
+    await p.evaluate(() => openCountry('JPN'));
+    await p.waitForFunction(() => flatCtx && flatCtx.over && flatCtx.over.done === flatViewKey(), { timeout: 15000 });
+    const flat = await p.evaluate(async () => ({ href: flatCtx.over.img.getAttribute('href').length, rivers: !!$('flat').querySelector('path[clip-path^="url(#rivers"]'), lats: [...$('flat').querySelectorAll('path')].filter(n => n.getAttribute('stroke') === LATS.color).length, svg: (await currentSvg()).includes('data:image/png') }));
+    check('平面图', flat.href > 10000 && flat.rivers && flat.lats === 2 && flat.svg, JSON.stringify(flat));
+    await p.screenshot({ path: 'work/overlays-japan.png', clip: { x: box.x, y: box.y, width: box.width, height: box.height } });
+    await p.evaluate(() => closeCountry());
+    const saved = await p.evaluate(() => ({ rivers: cfg.rivers, latitudes: cfg.latitudes, lights: cfg.lights, ships: cfg.ships, legend: document.querySelectorAll('#ships-legend .legend-bar span').length, back: normalize(JSON.parse(JSON.stringify(cfg))).ships }));
+    check('开关保存、图例', saved.rivers && saved.latitudes && saved.lights && saved.ships && saved.back && saved.legend === 24, JSON.stringify(saved));
   }
   r.renderer = await p.evaluate(() => renderer);
 } catch (e) { errs.push('TEST ' + e.message); }

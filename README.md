@@ -54,6 +54,21 @@ An interactive globe for colouring countries, states and counties, with per-coun
 
 ![分层设色：中亚、青藏高原和喜马拉雅，印度涂成蓝色斜线](docs/images/hypso.jpg)
 
+### 河流、特殊纬线、夜晚灯光和航运密度
+
+“图层”里还有四个开关，可以和分层设色、涂色一起用：
+
+- **河流**：Natural Earth 1:10m 的河流和湖泊中心线，按重要程度分级。地球放大不到 2.5 倍时只显示较大的河流，再放大就显示全部。线是浅蓝色的，画在涂色之上、国界之下；平面图里只画国境以内的部分。
+- **赤道、南北回归线和南北极圈**：赤道是实线，回归线和极圈是虚线，颜色是柔和的砖红色。回归线和极圈按 2026 年的黄赤交角 23°26′10″ 计算。平面图里这几条线会横穿整张图。
+- **夜晚灯光**：NASA 的“黑色弹珠”2016 年全球夜光图。打开后整个地球蒙上一层深蓝的夜色，城市和道路按亮度透出暖黄色的光。蒙层和光都压得比较柔，涂过的颜色还能看出来。
+- **航运密度**：IMF 用 2015 年 1 月到 2021 年 2 月的船舶 AIS 定位统计出的全球航运密度，按对数分级，从浅金色（少）到暗玫红（多），图例在开关下面。马六甲海峡、英吉利海峡这些繁忙航道最显眼，远洋航线也能看清。数据只覆盖北纬 85° 到南纬 85°；在一格（0.005°）里六年加起来不到约 3000 次定位的地方当作没有船，不然整个大洋都会蒙上一层薄雾。
+
+夜光和分层设色一样分三级（4 角分概览、1 角分和 30 角秒分块），航运密度分两级（4 角分概览和 2 角分分块，约 3.7 公里，航道本身就有几公里宽），都按需加载。导出的 PNG 和 SVG 都带这四层，SVG 里夜光和航运是嵌入的栅格图。平面图只显示国境以内的夜光和航运。
+
+![河流和特殊纬线：非洲和南美洲](docs/images/rivers.jpg)
+
+![夜晚灯光和航运密度：东亚和东南亚](docs/images/lights.jpg)
+
 ### 侧栏和布局
 
 页面固定在一屏里，不会上下滚动。工具在左侧栏：阵营、图层、界面主题、导出和配置；颜色在右侧栏：画笔、当前颜色和地图底色。两侧都能收起成一条窄栏（快捷键是 `[` 和 `]`），每张卡片点标题就能折叠。点侧栏顶部的铅笔进入编辑模式，可以隐藏整张卡片或其中某一行（比如用不到的阵营），调整卡片顺序，或者把卡片移到另一侧；“恢复默认”会还原布局。布局记在本地（桌面版记在设置文件里），下次打开照旧。窗口窄于 900 像素时，侧栏改为浮在地图上，一次展开一侧。
@@ -87,19 +102,22 @@ An interactive globe for colouring countries, states and counties, with per-coun
 | 各国首都（搜索时转到的位置） | Natural Earth 1:10m 有人口地区，另有 19 个小领地是手工补的 | 公有领域 |
 | 国旗 | flag-icons | MIT |
 | 海拔和水深（分层设色） | NOAA ETOPO 2022，30 角秒，冰面高程 | 公有领域 |
+| 河流和湖泊中心线 | Natural Earth 1:10m（含分级版本） | 公有领域 |
+| 夜晚灯光 | NASA 地球观测站“黑色弹珠”2016，灰度版，15 角秒（Suomi NPP VIIRS） | NASA 图像，注明来源即可使用 |
+| 航运密度 | IMF 世界海运贸易监测系统，经世界银行发布（Global Shipping Traffic Density，2015–2021） | CC BY 4.0 |
 | 第十段线的位置 | 参考阿里云 DataV 地理数据，只是近似 | 条款未核实 |
 
 地图数据不放在仓库里，用下面的脚本下载、生成。
 
 ## 运行和构建
 
-需要 Node.js（开发时用的是 24）、约 2.3GB 磁盘空间，第一次使用时按顺序运行：
+需要 Node.js（开发时用的是 24）、约 13GB 磁盘空间（航运密度的原始数据解压后有 9.2GB），第一次使用时按顺序运行：
 
 ```sh
 npm install
-npm run fetch          # 下载原始数据到 raw/，约 1.8GB
+npm run fetch          # 下载原始数据到 raw/，约 12GB
 npm run prepare-data   # 生成中间文件
-npm run build          # 生成 dist/data 和 dist/index.html，约 20 秒
+npm run build          # 生成 dist/data 和 dist/index.html，约 10 分钟（大部分是高程、夜光和航运分块）
 npm run serve          # 本地预览：http://127.0.0.1:8765/wrap.html
 ```
 
@@ -107,13 +125,13 @@ npm run serve          # 本地预览：http://127.0.0.1:8765/wrap.html
 
 桌面版：`npm run desktop` 直接启动，`npm run dist:mac` 打包 Apple Silicon 版的 dmg 和 zip（各约 195MB，其中 118MB 是地图数据），输出到 `release/`。目前还没有签名和公证，复制到别的 Mac 上第一次打开时，要右键选择“打开”，或者在“系统设置 › 隐私与安全性”里放行。`npm run dist:win` 在 Mac 上就能交叉打包 Windows x64 版，得到安装程序 `world-globe-1.2.0-x64-setup.exe`（约 170MB）和免安装的 zip（约 220MB）。Windows 版同样没有签名，第一次运行时 SmartScreen 会拦下，点“更多信息”再点“仍要运行”即可。
 
-README 里的截图由 `node scripts/screenshots.mjs <globe|search|germany|blocs|dark|hypso>` 生成，需要先运行 `npm run serve`。桌面版那张是手动截的。
+README 里的截图由 `node scripts/screenshots.mjs <globe|search|germany|blocs|dark|hypso|rivers|lights>` 生成，需要先运行 `npm run serve`。桌面版那张是手动截的。
 
 ## 实现方式
 
 地球用 WebGL2 和正射投影绘制，拖动和静止都是 1:10m 精度，三种拖动情况都稳定在 60 帧；浏览器不支持 WebGL2 时退回 Canvas 2D。悬停高亮画在一层 Canvas 2D 上，平面图用 SVG 绘制，方便导出。读数据、保存文件和读写配置都经过 `src/platform.js`，网页版和桌面版各有一套实现。用到的库有 D3 7.9.0、TopoJSON 和 earcut 2.2.4。
 
-简化后的国家轮廓直接嵌在页面里。1:10m 轮廓、行政区线，以及每个国家的一级（210 个文件）和二级（201 个文件）行政区数据是单独的文件，打开对应国家时才加载，总共约 50MB。分层设色的高程由 `scripts/hypso.mjs` 从 ETOPO 2022 生成：每格换成一个字节的分层代码，压缩后概览图约 2MB，288 块 1 角分分块约 18MB，1152 块 30 角秒分块约 49MB，生成一次约 3 分钟。地球的片元着色器按自己的屏幕位置反算经纬度后取分层颜色；平面图、Canvas 回退和导出用同样的反算在 CPU 上生成栅格。
+简化后的国家轮廓直接嵌在页面里。1:10m 轮廓、行政区线，以及每个国家的一级（210 个文件）和二级（201 个文件）行政区数据是单独的文件，打开对应国家时才加载，总共约 50MB。分层设色的高程由 `scripts/hypso.mjs` 从 ETOPO 2022 生成：每格换成一个字节的分层代码，压缩后概览图约 2MB，288 块 1 角分分块约 18MB，1152 块 30 角秒分块约 49MB，生成一次约 3 分钟。夜光和航运密度由 `scripts/overlays.mjs` 按同样的格式生成：夜光约 23MB（全是 0 的分块不写），航运密度约 17MB，各要一两分钟。河流是 `rivers.json`，约 1.8MB。地球的片元着色器按自己的屏幕位置反算经纬度后取分层颜色和叠加层颜色；平面图、Canvas 回退和导出用同样的反算在 CPU 上生成栅格。
 
 数据用 mapshaper 处理，主要步骤是：
 
@@ -143,6 +161,7 @@ scripts/             数据下载、处理、组装、截图和本地预览脚�
   capitals.mjs         从 Natural Earth 生成 src/capitals.js
   flags.mjs            把 flag-icons 的国旗按地图单位打包成 dist/data/flags.json
   hypso.mjs            从 ETOPO 2022 生成分层设色用的高程分层（dist/data/hypso）
+  overlays.mjs         生成夜晚灯光和航运密度的分块（dist/data/lights、dist/data/ships）
   gdr-align.mjs        把德国行政区和东西德分界线对齐，切出诺伊豪斯
   assemble.mjs         组装 dist/index.html 和 desktop/app/
   screenshots.mjs      生成 README 截图
@@ -150,7 +169,7 @@ scripts/             数据下载、处理、组装、截图和本地预览脚�
 test/                用 puppeteer-core 驱动本机 Chrome 和 Electron 的测试
   interactions.mjs     涂色、代码输入、旧配置迁移
   denmark.mjs          平面图插图
-  webgl.mjs            WebGL 显示、点击、悬停、缩放、导出、阵营、中英文和分层设色（分批运行）
+  webgl.mjs            WebGL 显示、点击、悬停、缩放、导出、阵营、中英文、分层设色、河流和叠加层（分批运行）
   desktop.mjs          桌面版：项目文件、菜单、导出、内容安全策略
   layout.mjs           侧栏收起、卡片折叠、编辑显示内容、页面不滚动
   bench.mjs            拖动帧率

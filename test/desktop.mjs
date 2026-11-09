@@ -79,6 +79,15 @@ await launch([FILE], async (p, main) => {
   await sleep(700);
   r.hypso = await p.evaluate(() => ({ tiles: glView.stats.demTiles, lo: bandRange(codeAt(88, 33))[0] }));
   r.hypso.file = JSON.parse(fs.readFileSync(FILE, 'utf8')).hypso;
+  // rivers, the parallels, night lights and shipping: their files come over app:// too, and the switches are saved in the project
+  await p.evaluate(() => { $('t-rivers').click(); $('t-lats').click(); $('t-lights').click(); $('t-ships').click(); });
+  await p.waitForFunction('DATA.rivers && lightsOn() && shipsOn()', { timeout: 15000 });
+  await p.evaluate(() => { rot = [-104, -1.3, 0]; zoom = 6; moving = false; drawBase(); });
+  await p.waitForFunction('glView.stats.lightsTiles > 0 && glView.stats.shipsTiles > 0', { timeout: 15000 });
+  r.overlays = await p.evaluate(() => ({ lights: glView.stats.lightsTiles, ships: glView.stats.shipsTiles, rivers: DATA.rivers.all.coordinates.length, strait: codeAt(103.983, 1.25, SHIPS), city: codeAt(103.85, 1.3, LIGHTS) }));
+  await sleep(700);
+  r.overlays.file = (({ rivers, latitudes, lights, ships }) => [rivers, latitudes, lights, ships].join())(JSON.parse(fs.readFileSync(FILE, 'utf8')));
+  await p.evaluate(() => { $('t-rivers').click(); $('t-lats').click(); $('t-lights').click(); $('t-ships').click(); });
   // back to the whole globe for the exports below
   await p.evaluate(() => { rot = [60, -20, 0]; zoom = 1; moving = false; drawBase(); });
   // theme: dark pins the page and the window; system hands it back
@@ -157,6 +166,7 @@ const pass = {
   nextLaunch: r.restored && r.restored.cats === 'JPN' && r.restored.leftShut && /^● /.test(r.titleRestored || '') && r.askedRun2 && r.askedRun2.length === 1 && r.reopened === 'DNK,BRA' && r.keptAfterOpen === false && r.run3 === 'DNK,BRA' && /旧项目/.test(r.titleRun3 || ''),
   noPrompts: r.askedRun1 && r.askedRun1.length === 0,
   csp: r.inlineScript && !r.inlineScript.ran && r.remoteFetch === 'blocked' && r.csp && r.csp.length === 0,
+  overlays: r.overlays && r.overlays.lights > 0 && r.overlays.ships > 0 && r.overlays.rivers > 1000 && r.overlays.strait > 180 && r.overlays.city > 200 && r.overlays.file === 'true,true,true,true',
   hypso: r.hypso && r.hypso.tiles > 0 && r.hypso.lo >= 4500 && r.hypso.file === true && r.hypsoRun3 && r.hypsoRun3.on && r.hypsoRun3.box
 };
 console.log(JSON.stringify({ pass, r, errs, log: log.split('\n').filter(l => /error|Error/.test(l) && !/Debugger|inspector|DevTools/.test(l)).slice(0, 8) }, null, 1));

@@ -42,6 +42,11 @@ m $W/l.shp name=lines -simplify interval=20000 -o $G/data/admin1-lo.json format=
 m $W/adm2c.shp -filter-fields a,k,n -split a -o singles $W/a2split/ format=topojson quantization=100000
 node $R/scripts/stageC.mjs $P $W $G 2>&1 | grep -E "features|winding|admin|greenland|denmark" | cut -c1-200
 node "$R/scripts/flags.mjs"
+# rivers and lake centre lines (Natural Earth 1:10m), one feature per scale rank; the globe shows ranks up to 6 until it is zoomed in
+m $P/ne_10m_rivers_lake_centerlines_scale_rank/ne_10m_rivers_lake_centerlines_scale_rank.shp name=rivers -each "r=scalerank" -filter-fields r -dissolve r -simplify interval=300 -o $G/data/rivers.json format=topojson quantization=100000
 # elevation bands for the hypsometric tints (ETOPO 2022, 30 arc-seconds; about four minutes)
 node "$R/scripts/hypso.mjs" "$P/etopo" "$G/data/hypso"
+# night lights and shipping density in the same tile layout (scripts/overlays.mjs; about two minutes each)
+node "$R/scripts/overlays.mjs" lights "$P/lights" "$G/data/lights"
+node "$R/scripts/overlays.mjs" ships "$P/ships" "$G/data/ships"
 node "$R/scripts/assemble.mjs"

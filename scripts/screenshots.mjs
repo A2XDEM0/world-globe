@@ -1,5 +1,5 @@
 // Takes the README screenshots into docs/images/, one shot per run so each browser stays under 30 s.
-// Usage: node scripts/screenshots.mjs <shot>, with `npm run serve` running; shots: globe, search, germany, blocs, dark, hypso.
+// Usage: node scripts/screenshots.mjs <shot>, with `npm run serve` running; shots: globe, search, germany, blocs, dark, hypso, rivers, lights.
 // Each PNG is then turned into a 1600 px wide JPEG with macOS sips.
 import puppeteer from 'puppeteer-core'; import path from 'path'; import fs from 'fs'; import { fileURLToPath } from 'url'; import { execFileSync } from 'child_process';
 const R = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'), OUT = R + '/docs/images', shot = process.argv[2];
@@ -38,6 +38,19 @@ if (shot === 'search') {
   await p.waitForFunction('hypsoOn() && glDem', { timeout: 10000 });
   await view([-84, -31, 0], 2.6);
   await p.waitForFunction('glView.stats.demTiles > 0', { timeout: 10000 });
+  await sleep(1500);
+} else if (shot === 'rivers') {
+  // rivers and the special parallels over South America and Africa, the blocs card folded away
+  await p.evaluate(() => { $('t-rivers').click(); $('t-lats').click(); secs.blocs.querySelector('.sec-toggle').click(); });
+  await p.waitForFunction('DATA.rivers', { timeout: 10000 });
+  await view([30, 8, 0], 1.25);
+  await sleep(1500);
+} else if (shot === 'lights') {
+  // night lights and shipping lanes around East and Southeast Asia
+  await p.evaluate(() => { $('t-lights').click(); $('t-ships').click(); secs.blocs.querySelector('.sec-toggle').click(); });
+  await p.waitForFunction('lightsOn() && shipsOn() && glView.overlayReady("lights") && glView.overlayReady("ships")', { timeout: 10000 });
+  await view([-118, -18, 0], 2.6);
+  await p.waitForFunction('glView.stats.lightsTiles > 0 && glView.stats.shipsTiles > 0', { timeout: 10000 });
   await sleep(1500);
 } else await sleep(800);
 await p.mouse.move(1, 1);

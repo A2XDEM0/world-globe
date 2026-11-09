@@ -13,3 +13,9 @@ mkdir -p ohm && curl -fsS -H 'User-Agent: world-globe/1.0' --data-urlencode 'dat
 mkdir -p refd && curl -fsSL -o refd/cn.json https://geo.datav.aliyun.com/areas_v3/bound/100000_full.json
 # elevation for the hypsometric tints: ETOPO 2022, 30 arc-seconds, ice surface (NOAA NCEI, public domain), about 1.6 GB
 mkdir -p etopo && curl -fsSL -o etopo/ETOPO_2022_v1_30s_N90W180_surface.tif https://www.ngdc.noaa.gov/mgg/global/relief/ETOPO2022/data/30s/30s_surface_elev_gtif/ETOPO_2022_v1_30s_N90W180_surface.tif
+# rivers and lake centre lines, 1:10m (Natural Earth, public domain)
+mkdir -p ne_10m_rivers_lake_centerlines_scale_rank && curl -fsSL -o rivers.zip $NE/physical/ne_10m_rivers_lake_centerlines_scale_rank.zip && unzip -qo rivers.zip -d ne_10m_rivers_lake_centerlines_scale_rank && rm rivers.zip
+# shipping traffic density, AIS 2015–2021, 0.005° (IMF World Seaborne Trade Monitoring System via the World Bank, CC BY 4.0), about 535 MB
+mkdir -p ships && curl -fsSL -o ships/shipdensity_global.zip https://datacatalogfiles.worldbank.org/ddh-published/0037580/5/DR0045406/shipdensity_global.zip && unzip -qo ships/shipdensity_global.zip -x "*.ovr" -d ships && rm ships/shipdensity_global.zip
+# night lights: Black Marble 2016, grayscale, 15 arc-seconds in eight 90° tiles (NASA Earth Observatory, Suomi NPP VIIRS), about 175 MB
+mkdir -p lights && for t in A1 A2 B1 B2 C1 C2 D1 D2; do curl -fsSL -o lights/BlackMarble_2016_${t}_geo_gray.tif https://assets.science.nasa.gov/content/dam/science/esd/eo/images/imagerecords/144000/144897/BlackMarble_2016_${t}_geo_gray.tif; done

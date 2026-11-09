@@ -52,6 +52,21 @@ La altitud es ETOPO 2022 (NOAA) a 30 segundos de arco (unos 900 m), más o menos
 
 ![Tintas hipsométricas: Asia central, la meseta tibetana y el Himalaya, con la India coloreada con rayas azules](docs/images/hypso.jpg)
 
+### Ríos, paralelos notables, luces nocturnas y densidad del tráfico marítimo
+
+**Layers** tiene cuatro interruptores más, que se combinan con las tintas y el coloreado:
+
+- **Ríos**: ríos y ejes de lagos de Natural Earth a 1:10m, ordenados por importancia. Por debajo de ×2,5 el globo muestra solo los ríos grandes; al ampliar más, todos. Las líneas son azul claro, dibujadas sobre los colores y bajo las fronteras; el mapa plano dibuja solo la parte dentro del país.
+- **Ecuador, trópicos y círculos polares**: el ecuador con línea continua, los trópicos y los círculos polares con trazos, en un rojo ladrillo suave. Trópicos y círculos polares siguen la oblicuidad de la eclíptica de 2026, 23°26′10″. En los mapas planos estas líneas cruzan toda la hoja.
+- **Luces nocturnas**: el mapa Black Marble 2016 de la NASA, la Tierra de noche. El globo se cubre con un velo nocturno azul profundo y las ciudades y carreteras asoman en amarillo cálido según su brillo. Velo y luces son suaves, así que los colores siguen leyéndose.
+- **Densidad del tráfico marítimo**: la densidad mundial del FMI a partir de las posiciones AIS de los buques, de enero de 2015 a febrero de 2021, en escala logarítmica del oro pálido (poco) al rosa oscuro (mucho), con leyenda bajo el interruptor. Los estrechos concurridos, como Malaca o el canal de la Mancha, destacan, y las rutas oceánicas se distinguen bien. Los datos cubren de 85° N a 85° S; una celda de 0,005° con menos de unas 3.000 posiciones en seis años cuenta como vacía, si no todos los océanos quedarían cubiertos por una bruma fina.
+
+Las luces nocturnas tienen tres niveles como las tintas (vista general de cuatro minutos de arco, teselas de un minuto y de 30 segundos), la densidad marítima dos (vista general de cuatro minutos y teselas de dos minutos, unos 3,7 km, ya que una ruta mide de por sí unos kilómetros de ancho); todo se carga a demanda. Las exportaciones PNG y SVG incluyen las cuatro capas, con las luces y el tráfico incrustados como imágenes rasterizadas en el SVG. Los mapas planos muestran luces y tráfico solo dentro del país.
+
+![Ríos y paralelos notables: África y Sudamérica](docs/images/rivers.jpg)
+
+![Luces nocturnas y densidad del tráfico marítimo: Asia oriental y sudoriental](docs/images/lights.jpg)
+
 ### Barras laterales y disposición
 
 La página cabe en una sola pantalla y nunca se desplaza. Las herramientas están en la barra izquierda (bloques, capas, tema de la interfaz, exportación y configuración) y los colores en la derecha (pinceles, color actual y colores del mapa). Cada barra se pliega en un riel estrecho (atajos `[` y `]`), y cada tarjeta se pliega bajo su título. El lápiz de la parte superior de una barra activa la edición: ocultar tarjetas enteras o filas sueltas (un bloque que nunca usa, por ejemplo), reordenar tarjetas o pasar una al otro lado; **Reset layout** recupera la disposición por defecto. La disposición se recuerda localmente (en el archivo de ajustes en la aplicación de escritorio) y vuelve la próxima vez. Con menos de 900 px de ancho, las barras se abren sobre el mapa, una cada vez.
@@ -85,19 +100,22 @@ Este proyecto no representa las fronteras reconocidas internacionalmente ni la p
 | Capitales (destino de una búsqueda) | Natural Earth 1:10m, lugares poblados, más 19 territorios pequeños añadidos a mano | Dominio público |
 | Banderas | flag-icons | MIT |
 | Altitud y profundidad (tintas hipsométricas) | NOAA ETOPO 2022, 30 segundos de arco, superficie del hielo | Dominio público |
+| Ríos y ejes de lagos | Natural Earth 1:10m (con la versión por rangos) | Dominio público |
+| Luces nocturnas | NASA Earth Observatory, Black Marble 2016, escala de grises, 15 segundos de arco (Suomi NPP VIIRS) | Imágenes de la NASA, libres citando la fuente |
+| Densidad del tráfico marítimo | FMI, World Seaborne Trade Monitoring System, publicado por el Banco Mundial (Global Shipping Traffic Density, 2015–2021) | CC BY 4.0 |
 | Posición del décimo trazo | Según los geodatos DataV de Alibaba Cloud, solo aproximada | Condiciones no comprobadas |
 
 Los datos del mapa no están en el repositorio; los scripts de abajo los descargan y los construyen.
 
 ## Ejecutar y construir
 
-Hace falta Node.js (desarrollado con la versión 24) y unos 2,3 GB de disco. La primera vez, ejecute en orden:
+Hace falta Node.js (desarrollado con la versión 24) y unos 13 GB de disco (solo la densidad marítima ocupa 9,2 GB descomprimida). La primera vez, ejecute en orden:
 
 ```sh
 npm install
-npm run fetch          # descarga los datos originales en raw/, unos 1,8 GB
+npm run fetch          # descarga los datos originales en raw/, unos 12 GB
 npm run prepare-data   # construye los archivos intermedios
-npm run build          # construye dist/data y dist/index.html, unos 20 s
+npm run build          # construye dist/data y dist/index.html, unos 10 minutos (sobre todo las teselas de altitud, luces y tráfico)
 npm run serve          # vista previa local: http://127.0.0.1:8765/wrap.html
 ```
 
@@ -105,13 +123,13 @@ Si solo cambiaron archivos de `src/`, basta con `npm run assemble`; construye la
 
 Escritorio: `npm run desktop` abre la aplicación, y `npm run dist:mac` genera un dmg y un zip para Apple Silicon (unos 195 MB cada uno, 118 MB de ellos datos del mapa) en `release/`. La aplicación aún no está firmada ni notarizada: la primera vez que se abre en otro Mac, haga clic derecho y elija **Abrir**, o permítala en **Ajustes del Sistema › Privacidad y seguridad**. `npm run dist:win` genera desde un Mac la versión para Windows x64: un instalador, `world-globe-1.2.0-x64-setup.exe` (unos 170 MB), y un zip portátil (unos 220 MB). Tampoco está firmada, así que SmartScreen la detiene la primera vez; haga clic en **Más información** y luego en **Ejecutar de todas formas**.
 
-Las capturas del README se generan con `node scripts/screenshots.mjs <globe|search|germany|blocs|dark|hypso>`, con `npm run serve` en marcha. La de la aplicación de escritorio se hizo a mano.
+Las capturas del README se generan con `node scripts/screenshots.mjs <globe|search|germany|blocs|dark|hypso|rivers|lights>`, con `npm run serve` en marcha. La de la aplicación de escritorio se hizo a mano.
 
 ## Cómo funciona
 
 El globo se dibuja con WebGL2 en proyección ortográfica, a 1:10m tanto al arrastrar como en reposo, con 60 fotogramas por segundo estables en las tres pruebas de arrastre; sin WebGL2, el navegador vuelve a Canvas 2D. El resaltado al pasar el puntero se dibuja en una capa de Canvas 2D, y los mapas planos son SVG para exportarlos limpiamente. La lectura de datos, el guardado de archivos y los ajustes pasan por `src/platform.js`, que tiene una implementación para la web y otra para el escritorio. Bibliotecas: D3 7.9.0, TopoJSON y earcut 2.2.4.
 
-Los contornos simplificados de los países van incrustados en la página. Los contornos a 1:10m, las líneas de las divisiones y los datos de primer nivel (210 archivos) y de segundo nivel (201 archivos) de cada país son archivos aparte, que se cargan al abrir el país; unos 50 MB en total. La altitud de las tintas la genera `scripts/hypso.mjs` a partir de ETOPO 2022: cada celda pasa a ser un código de escalón de un byte, que comprimido ocupa cerca de 2 MB en la vista general, unos 18 MB en las 288 teselas de un minuto de arco y unos 49 MB en las 1152 teselas de 30 segundos de arco; generarlo lleva unos tres minutos. El fragment shader del globo invierte la proyección en su propia posición de pantalla y busca el escalón; los mapas planos, la alternativa en Canvas y las exportaciones construyen sus rásteres en la CPU con la misma inversión.
+Los contornos simplificados de los países van incrustados en la página. Los contornos a 1:10m, las líneas de las divisiones y los datos de primer nivel (210 archivos) y de segundo nivel (201 archivos) de cada país son archivos aparte, que se cargan al abrir el país; unos 50 MB en total. La altitud de las tintas la genera `scripts/hypso.mjs` a partir de ETOPO 2022: cada celda pasa a ser un código de escalón de un byte, que comprimido ocupa cerca de 2 MB en la vista general, unos 18 MB en las 288 teselas de un minuto de arco y unos 49 MB en las 1152 teselas de 30 segundos de arco; generarlo lleva unos tres minutos. `scripts/overlays.mjs` genera las luces nocturnas y la densidad marítima con el mismo formato: unos 23 MB las luces (las teselas que son todo ceros no se escriben) y 17 MB el tráfico, uno o dos minutos cada una. Los ríos están en `rivers.json`, unos 1,8 MB. El fragment shader del globo invierte la proyección en su propia posición de pantalla y busca el escalón; los mapas planos, la alternativa en Canvas y las exportaciones construyen sus rásteres en la CPU con la misma inversión.
 
 Los datos se procesan con mapshaper. Pasos principales:
 
@@ -141,6 +159,7 @@ scripts/             descarga, procesamiento, montaje, capturas y vista previa
   capitals.mjs         genera src/capitals.js a partir de Natural Earth
   flags.mjs            agrupa las banderas de flag-icons por unidad en dist/data/flags.json
   hypso.mjs            escalones de altitud para las tintas hipsométricas a partir de ETOPO 2022 (dist/data/hypso)
+  overlays.mjs         teselas de luces nocturnas y densidad marítima (dist/data/lights, dist/data/ships)
   gdr-align.mjs        alinea las divisiones alemanas con la frontera interalemana y recorta el Amt Neuhaus
   assemble.mjs         monta dist/index.html y desktop/app/
   screenshots.mjs      toma las capturas del README
@@ -148,7 +167,7 @@ scripts/             descarga, procesamiento, montaje, capturas y vista previa
 test/                pruebas que manejan Chrome y Electron en local con puppeteer-core
   interactions.mjs     coloreado, introducción de códigos, migración de ajustes antiguos
   denmark.mjs          recuadros de los mapas planos
-  webgl.mjs            dibujo WebGL, clics, puntero, zoom, exportación, bloques, idiomas y tintas hipsométricas (por lotes)
+  webgl.mjs            dibujo WebGL, clics, puntero, zoom, exportación, bloques, idiomas, tintas hipsométricas, ríos y capas superpuestas (por lotes)
   desktop.mjs          escritorio: archivos de proyecto, menús, exportación, política de seguridad
   layout.mjs           barras laterales, tarjetas plegables, edición de lo que se muestra, página sin desplazamiento
   bench.mjs            fluidez al arrastrar

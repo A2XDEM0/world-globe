@@ -52,6 +52,21 @@ L'altitude vient d'ETOPO 2022 (NOAA), à 30 secondes d'arc (environ 900 m), soit
 
 ![Teintes hypsométriques : Asie centrale, plateau tibétain et Himalaya, avec l'Inde coloriée en hachures bleues](docs/images/hypso.jpg)
 
+### Fleuves, parallèles remarquables, lumières nocturnes et densité du trafic maritime
+
+**Layers** propose quatre interrupteurs de plus, qui se combinent avec les teintes et le coloriage :
+
+- **Fleuves** : fleuves et axes des lacs de Natural Earth au 1:10m, classés par importance. En dessous de ×2,5, le globe ne montre que les grands fleuves ; au-delà, tous. Les traits sont bleu clair, dessinés au-dessus des couleurs et sous les frontières ; la carte à plat ne dessine que la partie située dans le pays.
+- **Équateur, tropiques et cercles polaires** : l'équateur en trait plein, les tropiques et les cercles polaires en tirets, d'un rouge brique adouci. Tropiques et cercles polaires suivent l'obliquité de l'écliptique de 2026, 23°26′10″. Sur les cartes à plat, ces lignes traversent toute la feuille.
+- **Lumières nocturnes** : la carte Black Marble 2016 de la NASA, la Terre de nuit. Le globe se couvre d'un voile nocturne bleu profond, et les villes et les routes apparaissent en jaune chaud selon leur luminosité. Voile et lumières restent doux, si bien que les couleurs restent lisibles.
+- **Densité du trafic maritime** : la densité mondiale établie par le FMI à partir des positions AIS des navires, de janvier 2015 à février 2021, sur une échelle logarithmique allant de l'or pâle (peu) au rose sombre (beaucoup), avec une légende sous l'interrupteur. Les détroits chargés, comme Malacca ou la Manche, ressortent, et les routes océaniques se lisent bien. Les données couvrent 85° N à 85° S ; une cellule de 0,005° comptant moins d'environ 3 000 positions en six ans est considérée comme vide, sinon tous les océans seraient voilés d'une brume légère.
+
+Les lumières nocturnes ont trois niveaux comme les teintes (vue d'ensemble à quatre minutes d'arc, tuiles à une minute et à 30 secondes), la densité maritime deux (vue d'ensemble à quatre minutes et tuiles à deux minutes, environ 3,7 km, une route maritime faisant elle-même quelques kilomètres de large) ; tout se charge à la demande. Les exports PNG et SVG comprennent les quatre couches, les lumières et le trafic étant intégrés en images matricielles dans le SVG. Les cartes à plat ne montrent lumières et trafic qu'à l'intérieur du pays.
+
+![Fleuves et parallèles remarquables : Afrique et Amérique du Sud](docs/images/rivers.jpg)
+
+![Lumières nocturnes et densité du trafic maritime : Asie de l'Est et du Sud-Est](docs/images/lights.jpg)
+
 ### Barres latérales et disposition
 
 La page tient sur un seul écran et ne défile jamais. Les outils sont dans la barre de gauche (blocs, calques, thème de l'interface, export et configuration), les couleurs dans celle de droite (pinceaux, couleur en cours, couleurs de la carte). Chaque barre se replie en un rail étroit (raccourcis `[` et `]`), et chaque carte se replie sous son titre. Le crayon en haut d'une barre lance l'édition : masquer des cartes entières ou de simples lignes (un bloc dont on ne se sert jamais, par exemple), réordonner les cartes ou en passer une de l'autre côté ; **Reset layout** rétablit la disposition par défaut. La disposition est mémorisée localement (dans le fichier de réglages pour l'application de bureau) et revient à l'ouverture suivante. Sous 900 px de large, les barres s'ouvrent par-dessus la carte, une à la fois.
@@ -85,19 +100,22 @@ Ce projet ne représente pas les frontières reconnues internationalement, ni la
 | Capitales (destination d'une recherche) | Natural Earth 1:10m, lieux peuplés, plus 19 petits territoires ajoutés à la main | Domaine public |
 | Drapeaux | flag-icons | MIT |
 | Altitude et profondeur (teintes hypsométriques) | NOAA ETOPO 2022, 30 secondes d'arc, surface des glaces | Domaine public |
+| Fleuves et axes des lacs | Natural Earth 1:10m (avec la version classée) | Domaine public |
+| Lumières nocturnes | NASA Earth Observatory, Black Marble 2016, niveaux de gris, 15 secondes d'arc (Suomi NPP VIIRS) | Images NASA, libres avec mention de la source |
+| Densité du trafic maritime | FMI, World Seaborne Trade Monitoring System, publié par la Banque mondiale (Global Shipping Traffic Density, 2015–2021) | CC BY 4.0 |
 | Position du dixième trait | D'après les géodonnées DataV d'Alibaba Cloud, approximative | Conditions non vérifiées |
 
 Les données cartographiques ne sont pas dans le dépôt ; les scripts ci-dessous les téléchargent et les construisent.
 
 ## Lancer et construire
 
-Il faut Node.js (développé avec la version 24) et environ 2,3 Go d'espace disque. La première fois, lancez dans l'ordre :
+Il faut Node.js (développé avec la version 24) et environ 13 Go d'espace disque (la densité maritime pèse à elle seule 9,2 Go décompressée). La première fois, lancez dans l'ordre :
 
 ```sh
 npm install
-npm run fetch          # télécharge les données brutes dans raw/, environ 1,8 Go
+npm run fetch          # télécharge les données brutes dans raw/, environ 12 Go
 npm run prepare-data   # construit les fichiers intermédiaires
-npm run build          # construit dist/data et dist/index.html, environ 20 s
+npm run build          # construit dist/data et dist/index.html, environ 10 minutes (surtout les tuiles d'altitude, de lumières et de trafic)
 npm run serve          # aperçu local : http://127.0.0.1:8765/wrap.html
 ```
 
@@ -105,13 +123,13 @@ Si seuls des fichiers de `src/` ont changé, `npm run assemble` suffit ; il cons
 
 Bureau : `npm run desktop` lance l'application, et `npm run dist:mac` produit un dmg et un zip pour Apple Silicon (environ 195 Mo chacun, dont 118 Mo de données) dans `release/`. L'application n'est pas encore signée ni notariée : la première fois qu'on l'ouvre sur un autre Mac, il faut faire un clic droit et choisir **Ouvrir**, ou l'autoriser dans **Réglages Système › Confidentialité et sécurité**. `npm run dist:win` produit depuis un Mac la version Windows x64 : un installateur, `world-globe-1.2.0-x64-setup.exe` (environ 170 Mo), et un zip portable (environ 220 Mo). Elle n'est pas signée non plus : au premier lancement, SmartScreen la bloque ; cliquez sur **Informations complémentaires**, puis **Exécuter quand même**.
 
-Les captures du README sont produites par `node scripts/screenshots.mjs <globe|search|germany|blocs|dark|hypso>`, avec `npm run serve` lancé. Celle de l'application de bureau a été prise à la main.
+Les captures du README sont produites par `node scripts/screenshots.mjs <globe|search|germany|blocs|dark|hypso|rivers|lights>`, avec `npm run serve` lancé. Celle de l'application de bureau a été prise à la main.
 
 ## Fonctionnement
 
 Le globe est dessiné en WebGL2 en projection orthographique, au 1:10m pendant le glissement comme au repos, à 60 images/s stables dans les trois tests de glissement ; sans WebGL2, le navigateur revient à Canvas 2D. Le survol est dessiné sur un calque Canvas 2D, et les cartes à plat sont en SVG pour s'exporter proprement. La lecture des données, l'enregistrement des fichiers et les réglages passent tous par `src/platform.js`, qui a une implémentation web et une de bureau. Bibliothèques : D3 7.9.0, TopoJSON et earcut 2.2.4.
 
-Les contours simplifiés des pays sont intégrés à la page. Les contours au 1:10m, les limites administratives et les données de premier niveau (210 fichiers) et de second niveau (201 fichiers) de chaque pays sont des fichiers séparés, chargés à l'ouverture du pays ; environ 50 Mo en tout. L'altitude des teintes est produite par `scripts/hypso.mjs` à partir d'ETOPO 2022 : chaque cellule devient un code de palier sur un octet, soit environ 2 Mo compressé pour la vue d'ensemble, environ 18 Mo pour les 288 tuiles à une minute d'arc et environ 49 Mo pour les 1 152 tuiles à 30 secondes d'arc ; une génération prend environ trois minutes. Le fragment shader du globe inverse la projection à sa propre position à l'écran pour trouver le palier ; les cartes à plat, le repli Canvas et les exports construisent leurs rasters sur le CPU avec la même inversion.
+Les contours simplifiés des pays sont intégrés à la page. Les contours au 1:10m, les limites administratives et les données de premier niveau (210 fichiers) et de second niveau (201 fichiers) de chaque pays sont des fichiers séparés, chargés à l'ouverture du pays ; environ 50 Mo en tout. L'altitude des teintes est produite par `scripts/hypso.mjs` à partir d'ETOPO 2022 : chaque cellule devient un code de palier sur un octet, soit environ 2 Mo compressé pour la vue d'ensemble, environ 18 Mo pour les 288 tuiles à une minute d'arc et environ 49 Mo pour les 1 152 tuiles à 30 secondes d'arc ; une génération prend environ trois minutes. `scripts/overlays.mjs` produit les lumières nocturnes et la densité maritime au même format : environ 23 Mo pour les lumières (les tuiles entièrement nulles ne sont pas écrites) et 17 Mo pour le trafic, une à deux minutes chacune. Les fleuves sont dans `rivers.json`, environ 1,8 Mo. Le fragment shader du globe inverse la projection à sa propre position à l'écran pour trouver le palier ; les cartes à plat, le repli Canvas et les exports construisent leurs rasters sur le CPU avec la même inversion.
 
 Les données sont traitées avec mapshaper. Étapes principales :
 
@@ -141,6 +159,7 @@ scripts/             téléchargement, traitement, assemblage, captures et aper�
   capitals.mjs         produit src/capitals.js depuis Natural Earth
   flags.mjs            regroupe les drapeaux flag-icons par unité dans dist/data/flags.json
   hypso.mjs            paliers d'altitude pour les teintes hypsométriques, à partir d'ETOPO 2022 (dist/data/hypso)
+  overlays.mjs         tuiles des lumières nocturnes et de la densité maritime (dist/data/lights, dist/data/ships)
   gdr-align.mjs        aligne les divisions allemandes sur la frontière interallemande, découpe l'Amt Neuhaus
   assemble.mjs         assemble dist/index.html et desktop/app/
   screenshots.mjs      prend les captures du README
@@ -148,7 +167,7 @@ scripts/             téléchargement, traitement, assemblage, captures et aper�
 test/                tests pilotant Chrome et Electron en local via puppeteer-core
   interactions.mjs     coloriage, saisie de codes, migration d'anciens réglages
   denmark.mjs          cartons des cartes à plat
-  webgl.mjs            dessin WebGL, clics, survol, zoom, export, blocs, langues et teintes hypsométriques (par lots)
+  webgl.mjs            dessin WebGL, clics, survol, zoom, export, blocs, langues, teintes hypsométriques, fleuves et couches superposées (par lots)
   desktop.mjs          application de bureau : fichiers de projet, menus, export, politique de sécurité
   layout.mjs           barres latérales, cartes repliables, édition de l'affichage, page sans défilement
   bench.mjs            fluidité du glissement

@@ -134,35 +134,54 @@ const GlobeGL = (() => {
 uniform mat3 uRot; uniform vec2 uCenter; uniform float uScale; uniform vec2 uView;
 vec2 screen(vec3 p) { return uCenter + uScale * vec2(p.y, -p.z); }
 vec4 clip(vec2 s) { return vec4(s.x / uView.x * 2.0 - 1.0, 1.0 - s.y / uView.y * 2.0, 0.0, 1.0); }`;
-  // elevation bands: codes below uSea are sea depths, the rest land heights (scripts/hypso.mjs). Two tile levels share one texture
-  // array; each has an index texture of layer + 1 per tile, 0 meaning not resident. uTiles/uTiles2 = columns, rows, degrees, pixels.
-  const DEM = `
-uniform mat3 uRot; uniform vec2 uCenter; uniform float uScale; uniform float uHeight;
-uniform highp sampler2D uDem0; uniform highp sampler2DArray uDemT; uniform highp sampler2D uDemIdx; uniform highp sampler2D uDemIdx2; uniform highp sampler2D uLut;
-uniform vec2 uDem0Size; uniform vec4 uTiles; uniform vec4 uTiles2; uniform int uSea;
-vec3 geoAt() {
-  vec2 q = vec2(gl_FragCoord.x, uHeight - gl_FragCoord.y), s = (q - uCenter) / uScale;
-  return vec3(sqrt(max(0.0, 1.0 - dot(s, s))), s.x, -s.y) * uRot;
-}
-// the code from one tile level, or -1 where that level's tile is not resident
-int tileCode(highp sampler2D idx, vec4 T, vec2 d) {
+  // GLSL for one raster set: an overview of the whole globe and up to two tile levels sharing one texture array, each level with an
+  // index texture of layer + 1 per tile, 0 meaning not resident. <p>Tiles/<p>Tiles2 = columns, rows, degrees, pixels.
+  const RASTER = p => `
+uniform highp sampler2D ${p}0; uniform highp sampler2DArray ${p}T; uniform highp sampler2D ${p}Idx; uniform highp sampler2D ${p}Idx2;
+uniform vec2 ${p}0Size; uniform vec4 ${p}Tiles; uniform vec4 ${p}Tiles2;
+int ${p}Tile(highp sampler2D idx, vec4 T, vec2 d) {
   if (T.z <= 0.0) return -1;
   vec2 t = d / T.z;
   ivec2 ti = clamp(ivec2(floor(t)), ivec2(0), ivec2(T.xy) - 1);
   int layer = int(texelFetch(idx, ti, 0).r * 255.0 + 0.5) - 1;
   if (layer < 0) return -1;
-  return int(texelFetch(uDemT, ivec3(clamp(ivec2((t - vec2(ti)) * T.w), ivec2(0), ivec2(int(T.w) - 1)), layer), 0).r * 255.0 + 0.5);
+  return int(texelFetch(${p}T, ivec3(clamp(ivec2((t - vec2(ti)) * T.w), ivec2(0), ivec2(int(T.w) - 1)), layer), 0).r * 255.0 + 0.5);
 }
-int demCode(vec3 g) {
-  vec2 d = vec2(degrees(atan(g.y, g.x)) + 180.0, 90.0 - degrees(asin(clamp(g.z, -1.0, 1.0))));
-  int c = tileCode(uDemIdx2, uTiles2, d);
-  if (c < 0) c = tileCode(uDemIdx, uTiles, d);
-  if (c < 0) c = int(texelFetch(uDem0, clamp(ivec2(d / vec2(360.0, 180.0) * uDem0Size), ivec2(0), ivec2(uDem0Size) - 1), 0).r * 255.0 + 0.5);
+// d: degrees east of 180° W and south of 90° N
+int ${p}Code(vec2 d) {
+  int c = ${p}Tile(${p}Idx2, ${p}Tiles2, d);
+  if (c < 0) c = ${p}Tile(${p}Idx, ${p}Tiles, d);
+  if (c < 0) c = int(texelFetch(${p}0, clamp(ivec2(d / vec2(360.0, 180.0) * ${p}0Size), ivec2(0), ivec2(${p}0Size) - 1), 0).r * 255.0 + 0.5);
   return c;
+}`;
+  const GEO = `
+uniform mat3 uRot; uniform vec2 uCenter; uniform float uScale; uniform float uHeight;
+vec3 geoAt() {
+  vec2 q = vec2(gl_FragCoord.x, uHeight - gl_FragCoord.y), s = (q - uCenter) / uScale;
+  return vec3(sqrt(max(0.0, 1.0 - dot(s, s))), s.x, -s.y) * uRot;
 }
+vec2 degAt(vec3 g) { return vec2(degrees(atan(g.y, g.x)) + 180.0, 90.0 - degrees(asin(clamp(g.z, -1.0, 1.0)))); }`;
+  // elevation bands: codes below uSea are sea depths, the rest land heights (scripts/hypso.mjs)
+  const DEM = GEO + RASTER('uDem') + `
+uniform highp sampler2D uLut; uniform int uSea;
 vec3 demColor(bool land) {
-  int c = demCode(geoAt());
+  int c = uDemCode(degAt(geoAt()));
   return texelFetch(uLut, ivec2(land ? max(c, uSea) : min(c, uSea - 1), 0), 0).rgb;
+}`;
+  // night lights and shipping density over everything drawn so far: each value picks a premultiplied colour from its own table;
+  // the lights' table also carries the night veil, so unlit places darken
+  const OVERLAY_FS = HEAD + GEO + RASTER('uLit') + RASTER('uShip') + `
+uniform highp sampler2D uLitLut; uniform highp sampler2D uShipLut; uniform int uLights; uniform int uShips; uniform float uR; out vec4 o;
+void main() {
+  vec2 q = vec2(gl_FragCoord.x, uHeight - gl_FragCoord.y);
+  float cov = clamp(uR - distance(q, uCenter) + 0.5, 0.0, 1.0);
+  if (cov <= 0.0) discard;
+  vec2 d = degAt(geoAt());
+  vec4 c = vec4(0.0);
+  if (uLights == 1) c = texelFetch(uLitLut, ivec2(uLitCode(d), 0), 0);
+  if (uShips == 1) { vec4 s = texelFetch(uShipLut, ivec2(uShipCode(d), 0), 0); c = s + c * (1.0 - s.a); }
+  if (c.a <= 0.0) discard;
+  o = c * cov;
 }`;
   const FILL_VS = HEAD + PROJECT + `
 in vec4 aPos; out float vDepth; flat out int vSlot;
@@ -245,14 +264,19 @@ void main() {
   // black strokes over the land, in the order the Canvas version strokes them, plus the rim of the sphere
   const INK_FS = HEAD + `
 uniform sampler2D uA; uniform sampler2D uB; uniform vec4 uAlphaA; uniform vec4 uAlphaB;
-uniform vec2 uCenter; uniform float uR; uniform float uRim; uniform float uHeight; out vec4 o;
+uniform vec2 uCenter; uniform float uR; uniform float uRim; uniform float uHeight; uniform vec4 uRiver; uniform vec4 uLat; out vec4 o;
 void main() {
   ivec2 at = ivec2(gl_FragCoord.xy);
-  vec4 a = texelFetch(uA, at, 0) * uAlphaA, b = texelFetch(uB, at, 0) * uAlphaB;
+  vec4 cb = texelFetch(uB, at, 0);
+  vec4 a = texelFetch(uA, at, 0) * uAlphaA, b = cb * uAlphaB;
   vec2 q = vec2(gl_FragCoord.x, uHeight - gl_FragCoord.y);
   float rim = clamp(uRim - abs(distance(q, uCenter) - uR) + 0.5, 0.0, 1.0) * 0.28;
   float keep = (1.0 - a.g) * (1.0 - a.b) * (1.0 - a.a) * (1.0 - b.r) * (1.0 - rim);
-  o = vec4(0.0, 0.0, 0.0, 1.0 - keep);
+  // rivers, then the special parallels, under the black strokes (premultiplied)
+  float r = cb.g * uRiver.a, l = cb.b * uLat.a;
+  vec4 c = vec4(uRiver.rgb * r, r);
+  c = vec4(uLat.rgb * l, l) + c * (1.0 - l);
+  o = vec4(0.0, 0.0, 0.0, 1.0 - keep) + c * keep;
 }`;
 
   function create(canvas) {
@@ -274,10 +298,10 @@ void main() {
       for (let i = 0; i < n; i++) { const name = gl.getActiveUniform(p, i).name; u[name] = gl.getUniformLocation(p, name); }
       return { p, u, a: name => gl.getAttribLocation(p, name) };
     };
-    let fill, line, ocean, ink;
+    let fill, line, ocean, ink, overlay;
     try {
       fill = compile(FILL_VS, FILL_FS); line = compile(LINE_VS, LINE_FS);
-      ocean = compile(QUAD_VS, OCEAN_FS); ink = compile(QUAD_VS, INK_FS);
+      ocean = compile(QUAD_VS, OCEAN_FS); ink = compile(QUAD_VS, INK_FS); overlay = compile(QUAD_VS, OVERLAY_FS);
     } catch (e) { console.warn('WebGL globe unavailable:', e); return null; }
 
     const quad = gl.createBuffer();
@@ -320,10 +344,8 @@ void main() {
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     }
 
-    /* elevation: the overview, up to TILES tiles of either level in one texture array, an index per level and the colour table */
-    const TILES = 80;
-    const dem = { ready: false, w: 1, h: 1, size: 900, levels: [], sea: 1, layers: new Map(), array: false };
-    const demTex = { ov: gl.createTexture(), arr: gl.createTexture(), idx: [gl.createTexture(), gl.createTexture()], lut: gl.createTexture() };
+    /* raster sets (elevation, night lights, shipping): an overview, up to `cap` tiles of either level in one texture array, an index per
+       level; each set owns four texture units from `unit` on */
     const r8 = (tex, w, h, data) => {
       gl.bindTexture(gl.TEXTURE_2D, tex);
       gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
@@ -332,66 +354,102 @@ void main() {
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
       gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
     };
-    // every sampler needs a texture of its own kind even while the tints are off
-    r8(demTex.ov, 1, 1, new Uint8Array(1));
-    for (const t of demTex.idx) r8(t, 1, 1, new Uint8Array(1));
-    gl.bindTexture(gl.TEXTURE_2D_ARRAY, demTex.arr);
-    gl.texImage3D(gl.TEXTURE_2D_ARRAY, 0, gl.R8, 1, 1, 1, 0, gl.RED, gl.UNSIGNED_BYTE, new Uint8Array(1));
-    gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-    gl.bindTexture(gl.TEXTURE_2D, demTex.lut);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
-    // { overview: Uint8Array of codes, w, h, levels: [{ size, deg, cols, rows }] (coarse to fine, same size), colors: hex per code,
-    // sea: the first land code }; false if the GPU cannot hold it
-    function setDem(d) {
-      const max = gl.getParameter(gl.MAX_TEXTURE_SIZE);
-      if (d.w > max || d.h > max || d.levels.some(L => L.size > max || L.size !== d.levels[0].size)) return false;
-      r8(demTex.ov, d.w, d.h, d.overview);
-      Object.assign(dem, { w: d.w, h: d.h, size: d.levels[0].size, levels: d.levels.slice(0, 2).map(L => ({ cols: L.cols, rows: L.rows, deg: L.deg })), sea: d.sea, ready: true });
-      const lut = new Uint8Array(d.colors.length * 4);
-      d.colors.forEach((h, i) => { hex(h, lut, i * 4); lut[i * 4 + 3] = 255; });
-      gl.bindTexture(gl.TEXTURE_2D, demTex.lut);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, d.colors.length, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, lut);
+    const rgba = (tex, w, data) => {
+      gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, data);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-      dem.layers.clear();
-      syncIndex();
+    };
+    function rasterSet(prefix, unit, cap) {
+      const R = { prefix, unit, cap, ready: false, w: 1, h: 1, size: 900, levels: [], layers: new Map(), array: false, lut: gl.createTexture(),
+        tex: { ov: gl.createTexture(), arr: gl.createTexture(), idx: [gl.createTexture(), gl.createTexture()] } };
+      // every sampler needs a texture of its own kind even while the set is off
+      r8(R.tex.ov, 1, 1, new Uint8Array(1));
+      for (const t of R.tex.idx) r8(t, 1, 1, new Uint8Array(1));
+      gl.bindTexture(gl.TEXTURE_2D_ARRAY, R.tex.arr);
+      gl.texImage3D(gl.TEXTURE_2D_ARRAY, 0, gl.R8, 1, 1, 1, 0, gl.RED, gl.UNSIGNED_BYTE, new Uint8Array(1));
+      gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+      rgba(R.lut, 1, new Uint8Array(4));
+      return R;
+    }
+    const dem = rasterSet('uDem', 3, 80), lit = rasterSet('uLit', 8, 56), ship = rasterSet('uShip', 12, 56);
+    const demLut = dem.lut;
+    // { overview: Uint8Array of codes, w, h, levels: [{ size, deg, cols, rows }] (coarse to fine, same size) }; false if the GPU cannot hold it
+    function loadRaster(R, d) {
+      const max = gl.getParameter(gl.MAX_TEXTURE_SIZE);
+      if (d.w > max || d.h > max || d.levels.some(L => L.size > max || L.size !== d.levels[0].size)) return false;
+      r8(R.tex.ov, d.w, d.h, d.overview);
+      Object.assign(R, { w: d.w, h: d.h, size: d.levels.length ? d.levels[0].size : 1, levels: d.levels.slice(0, 2).map(L => ({ cols: L.cols, rows: L.rows, deg: L.deg })), ready: true });
+      R.layers.clear();
+      syncIndex(R);
       return true;
     }
-    function syncIndex() {
-      dem.levels.forEach((L, i) => {
+    function syncIndex(R) {
+      R.levels.forEach((L, i) => {
         const idx = new Uint8Array(L.cols * L.rows);
-        for (const q of dem.layers.values()) if (q.n === i + 1) idx[q.row * L.cols + q.col] = q.layer + 1;
-        r8(demTex.idx[i], L.cols, L.rows, idx);
+        for (const q of R.layers.values()) if (q.n === i + 1) idx[q.row * L.cols + q.col] = q.layer + 1;
+        r8(R.tex.idx[i], L.cols, L.rows, idx);
       });
     }
     // the tiles that should be resident, most wanted first, as [{ key, n (level, 1 or 2), row, col, codes }]; others give up their layers
-    function setTiles(list) {
-      if (!dem.ready) return;
-      list = list.slice(0, TILES);
+    function loadTiles(R, list) {
+      if (!R.ready) return;
+      list = list.slice(0, R.cap);
       const want = new Set(list.map(q => q.key));
       let changed = false;
-      for (const [key] of dem.layers) if (!want.has(key)) { dem.layers.delete(key); changed = true; }
-      const used = new Set([...dem.layers.values()].map(q => q.layer));
+      for (const [key] of R.layers) if (!want.has(key)) { R.layers.delete(key); changed = true; }
+      const used = new Set([...R.layers.values()].map(q => q.layer));
       for (const q of list) {
-        if (dem.layers.has(q.key)) continue;
-        if (!dem.array) {
-          gl.bindTexture(gl.TEXTURE_2D_ARRAY, demTex.arr);
-          gl.texImage3D(gl.TEXTURE_2D_ARRAY, 0, gl.R8, dem.size, dem.size, TILES, 0, gl.RED, gl.UNSIGNED_BYTE, null);
-          dem.array = true;
+        if (R.layers.has(q.key)) continue;
+        gl.bindTexture(gl.TEXTURE_2D_ARRAY, R.tex.arr);
+        if (!R.array) {
+          gl.texImage3D(gl.TEXTURE_2D_ARRAY, 0, gl.R8, R.size, R.size, R.cap, 0, gl.RED, gl.UNSIGNED_BYTE, null);
+          R.array = true;
         }
         let layer = 0;
         while (used.has(layer)) layer++;
         used.add(layer);
-        gl.bindTexture(gl.TEXTURE_2D_ARRAY, demTex.arr);
         gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
-        gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, 0, 0, 0, layer, dem.size, dem.size, 1, gl.RED, gl.UNSIGNED_BYTE, q.codes);
+        gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, 0, 0, 0, layer, R.size, R.size, 1, gl.RED, gl.UNSIGNED_BYTE, q.codes);
         gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
-        dem.layers.set(q.key, { layer, n: q.n, row: q.row, col: q.col });
+        R.layers.set(q.key, { layer, n: q.n, row: q.row, col: q.col });
         changed = true;
       }
-      if (changed) syncIndex();
-      stats.demTiles = dem.layers.size;
+      if (changed) syncIndex(R);
+    }
+    // hex colours, one per code, opaque
+    function setDem(d) {
+      if (!loadRaster(dem, d)) return false;
+      const lut = new Uint8Array(d.colors.length * 4);
+      d.colors.forEach((h, i) => { hex(h, lut, i * 4); lut[i * 4 + 3] = 255; });
+      rgba(demLut, d.colors.length, lut);
+      dem.sea = d.sea;
+      return true;
+    }
+    function setTiles(list) { loadTiles(dem, list); stats.demTiles = dem.layers.size; }
+    // name 'lights' or 'ships'; d as for setDem but with `lut`, 256 premultiplied RGBA bytes per code
+    function setOverlay(name, d) {
+      const R = name === 'lights' ? lit : ship;
+      if (!loadRaster(R, d)) return false;
+      rgba(R.lut, 256, d.lut);
+      return true;
+    }
+    function setOverlayLut(name, lut) { rgba((name === 'lights' ? lit : ship).lut, 256, lut); }
+    function setOverlayTiles(name, list) { loadTiles(name === 'lights' ? lit : ship, list); stats[name + 'Tiles'] = (name === 'lights' ? lit : ship).layers.size; }
+    function bindRaster(prog, R) {
+      const p = R.prefix, u = prog.u;
+      if (!u[p + '0']) return;
+      gl.activeTexture(gl.TEXTURE0 + R.unit); gl.bindTexture(gl.TEXTURE_2D, R.tex.ov);
+      gl.activeTexture(gl.TEXTURE0 + R.unit + 1); gl.bindTexture(gl.TEXTURE_2D_ARRAY, R.tex.arr);
+      gl.activeTexture(gl.TEXTURE0 + R.unit + 2); gl.bindTexture(gl.TEXTURE_2D, R.tex.idx[0]);
+      gl.activeTexture(gl.TEXTURE0 + R.unit + 3); gl.bindTexture(gl.TEXTURE_2D, R.tex.idx[1]);
+      gl.uniform1i(u[p + '0'], R.unit); gl.uniform1i(u[p + 'T'], R.unit + 1); gl.uniform1i(u[p + 'Idx'], R.unit + 2); gl.uniform1i(u[p + 'Idx2'], R.unit + 3);
+      gl.uniform2f(u[p + '0Size'], R.w, R.h);
+      // a level that is not there has 0 degrees, which the shader skips
+      const T = i => R.levels[i] ? [R.levels[i].cols, R.levels[i].rows, R.levels[i].deg, R.size] : [1, 1, 0, 1];
+      gl.uniform4f(u[p + 'Tiles'], ...T(0));
+      gl.uniform4f(u[p + 'Tiles2'], ...T(1));
     }
 
     /* meshes */
@@ -518,15 +576,12 @@ void main() {
         if (prog.u.uView) gl.uniform2f(prog.u.uView, W, H);
         if (prog.u.uHeight) gl.uniform1f(prog.u.uHeight, H);
         if (prog.u.uR) gl.uniform1f(prog.u.uR, R);
-        if (prog.u.uDem0) {
-          gl.uniform1i(prog.u.uDem0, 3); gl.uniform1i(prog.u.uDemT, 4); gl.uniform1i(prog.u.uDemIdx, 5); gl.uniform1i(prog.u.uLut, 6); gl.uniform1i(prog.u.uDemIdx2, 7);
-          gl.uniform2f(prog.u.uDem0Size, dem.w, dem.h);
-          // a level that is not there has 0 degrees, which the shader skips
-          const T = i => dem.levels[i] ? [dem.levels[i].cols, dem.levels[i].rows, dem.levels[i].deg, dem.size] : [1, 1, 0, 1];
-          gl.uniform4f(prog.u.uTiles, ...T(0));
-          gl.uniform4f(prog.u.uTiles2, ...T(1));
-          gl.uniform1i(prog.u.uSea, dem.sea);
+        for (const R of [dem, lit, ship]) bindRaster(prog, R);
+        for (const [name, unit, tex] of [['uLut', 7, demLut], ['uLitLut', 16, lit.lut], ['uShipLut', 17, ship.lut]]) {
+          if (!prog.u[name]) continue;
+          gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, tex); gl.uniform1i(prog.u[name], unit);
         }
+        if (prog.u.uSea) gl.uniform1i(prog.u.uSea, dem.sea || 1);
       };
       target(W, H);
       gl.viewport(0, 0, W, H);
@@ -557,6 +612,9 @@ void main() {
       if (s.admin) stroke('admin', .4, [0, 0, 1, 0], [0, 0, 0, 0]);
       if (s.gdr) stroke('gdr', 1.1, [0, 0, 0, 1], [0, 0, 0, 0], [4, 3]);
       stroke('dashes', 1.3, [0, 0, 0, 0], [1, 0, 0, 0], null, true);
+      if (s.rivers) stroke('rivers', s.riverWidth || .6, [0, 0, 0, 0], [0, 1, 0, 0]);
+      // the equator solid, the tropics and polar circles dashed, all in one channel
+      if (s.latitudes) { stroke('equator', .8, [0, 0, 0, 0], [0, 0, 1, 0]); stroke('parallels', .8, [0, 0, 0, 0], [0, 0, 1, 0], [5, 3.5]); }
 
       // 2. paper and ocean
       gl.bindFramebuffer(gl.FRAMEBUFFER, null);
@@ -568,11 +626,6 @@ void main() {
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, cover[0]);
       gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, cover[1]);
       gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, colorTex);
-      gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D, demTex.ov);
-      gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_2D_ARRAY, demTex.arr);
-      gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D, demTex.idx[0]);
-      gl.activeTexture(gl.TEXTURE6); gl.bindTexture(gl.TEXTURE_2D, demTex.lut);
-      gl.activeTexture(gl.TEXTURE7); gl.bindTexture(gl.TEXTURE_2D, demTex.idx[1]);
       common(ocean);
       gl.uniform1i(ocean.u.uHypso, s.hypso && dem.ready ? 1 : 0);
       gl.uniform1i(ocean.u.uA, 0);
@@ -619,8 +672,20 @@ void main() {
         gl.disable(gl.BLEND);
       }
 
-      // 4. strokes and the rim
+      // 3c. night lights and shipping density over land, sea and paint
       gl.disable(gl.CULL_FACE);
+      const lights = s.lights && lit.ready, ships = s.ships && ship.ready;
+      if (lights || ships) {
+        gl.enable(gl.BLEND);
+        gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+        common(overlay);
+        gl.uniform1i(overlay.u.uLights, lights ? 1 : 0);
+        gl.uniform1i(overlay.u.uShips, ships ? 1 : 0);
+        gl.bindVertexArray(quadVao);
+        gl.drawArrays(gl.TRIANGLES, 0, 3);
+      }
+
+      // 4. strokes and the rim
       gl.enable(gl.BLEND);
       common(ink);
       gl.uniform1i(ink.u.uA, 0);
@@ -628,6 +693,8 @@ void main() {
       gl.uniform4f(ink.u.uAlphaA, .06, .3, .2, .7);
       gl.uniform4f(ink.u.uAlphaB, .72, 0, 0, 0);
       gl.uniform1f(ink.u.uRim, .4 * s.ratio);
+      gl.uniform4f(ink.u.uRiver, ...rgb(s.riverColor || '#6f9cc4'), s.riverAlpha ?? .8);
+      gl.uniform4f(ink.u.uLat, ...rgb(s.latColor || '#b9776b'), s.latAlpha ?? .75);
       gl.bindVertexArray(quadVao);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
       gl.bindVertexArray(null);
@@ -647,8 +714,9 @@ void main() {
       ctx.putImageData(img, 0, 0);
       return out;
     }
-    const stats = { countryVerts: 0, countryTris: 0, regionTris: 0, segments: 0, demTiles: 0 };
-    return { gl, setCountries, addRegion, setLines, setColors, setDem, setTiles, demReady: () => dem.ready, draw, snapshot, stats, detail: () => countries.detail, maxSize: gl.getParameter(gl.MAX_RENDERBUFFER_SIZE) };
+    const stats = { countryVerts: 0, countryTris: 0, regionTris: 0, segments: 0, demTiles: 0, lightsTiles: 0, shipsTiles: 0 };
+    return { gl, setCountries, addRegion, setLines, setColors, setDem, setTiles, demReady: () => dem.ready, setOverlay, setOverlayLut, setOverlayTiles,
+      overlayReady: name => (name === 'lights' ? lit : ship).ready, draw, snapshot, stats, detail: () => countries.detail, maxSize: gl.getParameter(gl.MAX_RENDERBUFFER_SIZE) };
   }
   return { create, meshPolygon, ring3, segments };
 })();
